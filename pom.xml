@@ -1,0 +1,34 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>de.metanome.algorithms.binder</groupId>
+  <artifactId>BINDERModules</artifactId>
+  <version>${metanome.version}</version>
+  <packaging>pom</packaging>
+
+  <name>BINDERModules</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <metanome.version>1.1-SNAPSHOT</metanome.version>
+  </properties>
+
+  <repositories>
+    <repository>
+      <id>snapshots-repo</id>
+      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+  </repositories> 
+
+  <modules>
+    <module>BINDERAlgorithm</module>
+    <module>BINDERDatabase</module>
+    <module>BINDERFile</module>
+  </modules>
+</project>
