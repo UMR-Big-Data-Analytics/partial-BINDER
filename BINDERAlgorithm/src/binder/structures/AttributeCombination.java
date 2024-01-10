@@ -1,9 +1,9 @@
-package de.metanome.algorithms.binder.structures;
+package binder.structures;
 
 import java.util.Arrays;
 import java.util.List;
 
-import de.uni_potsdam.hpi.utils.CollectionUtils;
+import binder.utils.CollectionUtils;
 
 public class AttributeCombination implements Comparable<AttributeCombination> {
 

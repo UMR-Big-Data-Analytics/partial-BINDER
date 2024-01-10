@@ -2,7 +2,7 @@ package binder.runner;
 
 import java.io.File;
 
-import de.uni_potsdam.hpi.utils.CollectionUtils;
+import binder.utils.CollectionUtils;
 
 public class Config {
 
@@ -30,15 +30,15 @@ public class Config {
 	public Config.Database databaseType;
 	public int inputRowLimit; // although specifying the row limit in % is more accurate as it uniformly shrinks a dataset, it is still given in #rows, because % would introduce an unfair overhead to SPIDER (you need to count the row numbers of all tables first to perform % on them)
 	
-	public String inputFolderPath = "data" + File.separator;
+	public String inputFolderPath = "M:\\MA\\data" + File.separator;
 	public String inputFileEnding = ".csv";
-	public char inputFileSeparator = ';';
+	public char inputFileSeparator = ',';
 	public char inputFileQuotechar = '\"';
 	public char inputFileEscape = '\\';//'\0';//
 	public int inputFileSkipLines = 0;
 	public boolean inputFileStrictQuotes = true;
 	public boolean inputFileIgnoreLeadingWhiteSpace = true;
-	public boolean inputFileHasHeader = false;
+	public boolean inputFileHasHeader = true;
 	public boolean inputFileSkipDifferingLines = true; // Skip lines that differ from the dataset's schema
 	public String inputFileNullString = "";
 	
@@ -338,10 +338,11 @@ public class Config {
 			this.inputFileHasHeader = true;
 			break;
 		case NCVOTER_STATEWIDE_SMALL:
-			this.databaseName = "ncvoter_Statewide_small";
-			this.tableNames = new String[] {"ncvoter_Statewide_100001r_71c"};
+			this.databaseName = "Kaggle";
+			this.tableNames = new String[] {"creditcard_2023"};
 			this.inputFileSeparator = ',';
 			this.inputFileHasHeader = true;
+
 			break;
 		default:
 			break;

@@ -6,8 +6,8 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
-import de.uni_potsdam.hpi.utils.CollectionUtils;
-import de.uni_potsdam.hpi.utils.DatabaseUtils;
+import binder.utils.CollectionUtils;
+import binder.utils.DatabaseUtils;
 
 public abstract class DataAccessObject {
 

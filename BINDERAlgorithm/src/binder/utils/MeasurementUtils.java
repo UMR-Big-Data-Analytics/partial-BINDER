@@ -1,19 +1,11 @@
 package binder.utils;
 
 public class MeasurementUtils {
-
-	public static long sizeOf32(String s) {
-		long bytes = 40 + 2 * s.length();
-		
-		bytes = (long)(8 * (Math.ceil(bytes / 8)));
-			
-		return bytes;
-	}
 	
 	public static long sizeOf64(String s) {
-		long bytes = 64 + 2 * s.length();
+		long bytes = 64 + 2L * s.length();
 		
-		bytes = (long)(8 * (Math.ceil(bytes / 8)));
+		bytes = (long)(8 * Math.ceil(bytes / 8));
 		
 		return bytes;
 	}

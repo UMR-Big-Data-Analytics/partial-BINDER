@@ -41,7 +41,7 @@ import de.metanome.algorithm_integration.results.InclusionDependency;
 import binder.io.FileInputIterator;
 import binder.io.InputIterator;
 import binder.structures.Attribute;
-import de.metanome.algorithms.binder.structures.AttributeCombination;
+import binder.structures.AttributeCombination;
 import de.metanome.algorithms.binder.structures.IntSingleLinkedList;
 import de.metanome.algorithms.binder.structures.IntSingleLinkedList.ElementIterator;
 import de.metanome.algorithms.binder.structures.Level;
