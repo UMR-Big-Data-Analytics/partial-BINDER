@@ -1,10 +1,11 @@
 package binder.io;
 
-import au.com.bytecode.opencsv.CSVReader;
 import binder.runner.Config;
+import com.opencsv.CSVReader;
 import de.metanome.algorithm_integration.input.InputIterationException;
 import de.metanome.algorithm_integration.input.RelationalInput;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
@@ -13,13 +14,9 @@ import java.util.List;
 
 public class RelationalFileInput implements RelationalInput {
 
-    public static final boolean DEFAULT_HAS_HEADER = true;
-    public static final boolean DEFAULT_SKIP_DIFFERING_LINES = false;
-    public static final String DEFAULT_NULL_VALUE = "";
-
     protected static final String DEFAULT_HEADER_STRING = "column";
 
-    protected CSVReader csvReader;
+    protected CSVReader CSVReader;
     protected List<String> headerLine;
     protected List<String> nextLine;
     protected String relationName;
@@ -33,23 +30,19 @@ public class RelationalFileInput implements RelationalInput {
     protected String nullValue;
 
 
-    public RelationalFileInput(String relationName, Reader reader, Config setting) throws InputIterationException {
+    public RelationalFileInput(String relationName, BufferedReader reader, Config setting) throws InputIterationException {
         this.relationName = relationName;
 
         this.hasHeader = setting.inputFileHasHeader;
         this.skipDifferingLines = setting.inputFileSkipDifferingLines;
         this.nullValue = setting.inputFileNullString;
 
-        this.csvReader = new CSVReader(
+        this.CSVReader = new CSVReader(
                 reader,
-                setting.inputFileSeparator,
-                setting.inputFileQuotechar,
-                setting.inputFileEscape,
-                setting.inputFileSkipLines,
-                setting.inputFileStrictQuotes,
-                setting.inputFileIgnoreLeadingWhiteSpace
+                setting.inputFileSeparator
         );
 
+        // read the first line
         this.nextLine = readNextLine();
         if (this.nextLine != null) {
             this.numberOfColumns = this.nextLine.size();
@@ -110,9 +103,9 @@ public class RelationalFileInput implements RelationalInput {
     }
 
     protected List<String> generateHeaderLine() {
-        List<String> headerList = new ArrayList<String>();
+        List<String> headerList = new ArrayList<>();
         for (int i = 1; i <= this.numberOfColumns; i++) {
-            headerList.add(DEFAULT_HEADER_STRING + Integer.toString(i));
+            headerList.add(DEFAULT_HEADER_STRING + i);
         }
         return Collections.unmodifiableList(headerList);
     }
@@ -120,7 +113,7 @@ public class RelationalFileInput implements RelationalInput {
     protected List<String> readNextLine() throws InputIterationException {
         String[] lineArray;
         try {
-            lineArray = this.csvReader.readNext();
+            lineArray = this.CSVReader.readNext();
             currentLineNumber++;
         } catch (IOException e) {
             throw new InputIterationException("Could not read next line in file input", e);
@@ -129,7 +122,7 @@ public class RelationalFileInput implements RelationalInput {
             return null;
         }
         // Convert empty Strings to null
-        List<String> list = new ArrayList<String>();
+        List<String> list = new ArrayList<>();
         for (String val : lineArray) {
             if (val.equals(this.nullValue)) {
                 list.add(null);
@@ -143,7 +136,7 @@ public class RelationalFileInput implements RelationalInput {
 
     @Override
     public void close() throws IOException {
-        csvReader.close();
+        CSVReader.close();
     }
 
     @Override

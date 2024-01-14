@@ -56,7 +56,6 @@ public class Buckets {
                             binder.nullValueColumns.set(startTableColumnIndex + columnNumber);
                             continue;
                         }
-                        System.out.println(columnNumber + " " + value);
                         // Bucketize
                         int bucketNumber = calculateBucketFor(value, binder.numBucketsPerColumn);
                         if (buckets.get(columnNumber).get(bucketNumber).add(value)) {
