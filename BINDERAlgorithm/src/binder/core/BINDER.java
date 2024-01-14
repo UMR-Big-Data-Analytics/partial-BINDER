@@ -10,7 +10,6 @@ import de.metanome.algorithm_integration.ColumnIdentifier;
 import de.metanome.algorithm_integration.ColumnPermutation;
 import de.metanome.algorithm_integration.input.InputGenerationException;
 import de.metanome.algorithm_integration.input.InputIterationException;
-import de.metanome.algorithm_integration.input.RelationalInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import de.metanome.algorithm_integration.result_receiver.ColumnNameMismatchException;
 import de.metanome.algorithm_integration.result_receiver.CouldNotReceiveResultException;
@@ -38,130 +37,73 @@ import java.util.*;
 // Bucketing IND ExtractoR (BINDER)
 public class BINDER {
 
-    protected RelationalInputGenerator[] fileInputGenerator = null;
-    protected InclusionDependencyResultReceiver resultReceiver = null;
-    protected DataAccessObject dao = null;
-    protected String[] tableNames = null;
-    protected String databaseName = null;
+    public RelationalInputGenerator[] fileInputGenerator = null;
+    public InclusionDependencyResultReceiver resultReceiver = null;
+    public DataAccessObject dao = null;
+    public String[] tableNames = null;
+    public String databaseName = null;
     protected String tempFolderPath = "BINDER_temp"; // TODO: Use Metanome temp file functionality here (interface TempFileAlgorithm)
-    protected boolean cleanTemp = true;
-    protected boolean detectNary = false;
+    public boolean cleanTemp = true;
+    public boolean detectNary = false;
     protected boolean filterKeyForeignkeys = false;
     protected int maxNaryLevel = -1;
-    protected int inputRowLimit = -1;
-    protected int numBucketsPerColumn = 10; // Initial number of buckets per column
-    protected int memoryCheckFrequency = 100; // Number of new, i.e., so far unseen values during bucketing that trigger a memory consumption check
-    protected int maxMemoryUsagePercentage = 60; // The algorithm spills to disc if memory usage exceeds X% of available memory
+    public int inputRowLimit = -1;
+    public int numBucketsPerColumn = 10; // Initial number of buckets per column
+    public int memoryCheckFrequency = 100; // Number of new, i.e., so far unseen values during bucketing that trigger a memory consumption check
+    public int maxMemoryUsagePercentage = 60; // The algorithm spills to disc if memory usage exceeds X% of available memory
 
-    private int numColumns;
-    private long availableMemory;
-    private long maxMemoryUsage;
+    public int numColumns;
+    public long availableMemory;
+    public long maxMemoryUsage;
 
-    private File tempFolder = null;
+    public File tempFolder = null;
 
     private Int2ObjectOpenHashMap<List<List<String>>> attribute2subBucketsCache = null;
 
-    private int[] tableColumnStartIndexes = null;
-    private List<String> columnNames = null;
-    private List<String> columnTypes = null;
+    int[] tableColumnStartIndexes = null;
+    List<String> columnNames = null;
+    List<String> columnTypes = null;
 
     private Int2ObjectOpenHashMap<IntSingleLinkedList> dep2ref = null;
-    private int numUnaryINDs = 0;
+    public int numUnaryINDs = 0;
 
     private Map<AttributeCombination, List<AttributeCombination>> naryDep2ref = null;
-    private int[] column2table = null;
-    private int numNaryINDs = 0;
+    int[] column2table = null;
+    public int numNaryINDs = 0;
 
-    private OpenBitSet nullValueColumns;
+    public OpenBitSet nullValueColumns;
 
-    private long unaryStatisticTime = -1;
-    private long unaryLoadTime = -1;
-    private long unaryCompareTime = -1;
-    private LongArrayList naryGenerationTime = null;
-    private LongArrayList naryLoadTime = null;
-    private LongArrayList naryCompareTime = null;
-    private long outputTime = -1;
+    public long unaryStatisticTime = -1;
+    public long unaryLoadTime = -1;
+    public long unaryCompareTime = -1;
+    public LongArrayList naryGenerationTime = null;
+    public LongArrayList naryLoadTime = null;
+    public LongArrayList naryCompareTime = null;
+    public long outputTime = -1;
 
-    private IntArrayList activeAttributesPerBucketLevel;
-    private IntArrayList naryActiveAttributesPerBucketLevel;
-    private int[] spillCounts = null;
-    private List<int[]> narySpillCounts = null;
-    private int[] refinements = null;
-    private List<int[]> naryRefinements = null;
-    private int[] bucketComparisonOrder = null;
-    private LongArrayList columnSizes = null;
-
-    private PruningStatistics pruningStatistics = null;
-
+    public IntArrayList activeAttributesPerBucketLevel;
+    public IntArrayList naryActiveAttributesPerBucketLevel;
+    public int[] spillCounts = null;
+    public List<int[]> narySpillCounts = null;
+    public int[] refinements = null;
+    public List<int[]> naryRefinements = null;
+    public int[] bucketComparisonOrder = null;
+    public LongArrayList columnSizes = null;
     @Override
     public String toString() {
-        String input;
-        input = this.fileInputGenerator[0].getClass().getName() + " (" + this.fileInputGenerator.length + ")";
-
-        return "BINDER: \r\n\t" +
-                "input: " + input + "\r\n\t" +
-                "dao: " + ((this.dao != null) ? this.dao.getClass().getName() : "-") + "\r\n\t" +
-                "databaseName: " + this.databaseName + "\r\n\t" +
-                "inputRowLimit: " + this.inputRowLimit + "\r\n\t" +
-                "resultReceiver: " + ((this.resultReceiver != null) ? this.resultReceiver.getClass().getName() : "-") + "\r\n\t" +
-                "tempFolderPath: " + this.tempFolder.getPath() + "\r\n\t" +
-                "tableNames: " + ((this.tableNames != null) ? CollectionUtils.concat(this.tableNames, ", ") : "-") + "\r\n\t" +
-                "numColumns: " + this.numColumns + " (" + ((this.spillCounts != null) ? String.valueOf(CollectionUtils.countNotN(this.spillCounts, 0)) : "-") + " spilled)\r\n\t" +
-                "numBucketsPerColumn: " + this.numBucketsPerColumn + "\r\n\t" +
-                "bucketComparisonOrder: " + ((this.bucketComparisonOrder != null) ? CollectionUtils.concat(this.bucketComparisonOrder, ", ") : "-") + "\r\n\t" +
-                "memoryCheckFrequency: " + this.memoryCheckFrequency + "\r\n\t" +
-                "maxMemoryUsagePercentage: " + this.maxMemoryUsagePercentage + "%\r\n\t" +
-                "availableMemory: " + this.availableMemory + " byte (spilled when exeeding " + this.maxMemoryUsage + " byte)\r\n\t" +
-                "numBucketsPerColumn: " + this.numBucketsPerColumn + "\r\n\t" +
-                "memoryCheckFrequency: " + this.memoryCheckFrequency + "\r\n\t" +
-                "cleanTemp: " + this.cleanTemp + "\r\n\t" +
-                "detectNary: " + this.detectNary + "\r\n\t" +
-                "numUnaryINDs: " + this.numUnaryINDs + "\r\n\t" +
-                "numNaryINDs: " + this.numNaryINDs + "\r\n\t" +
-                "\r\n" +
-                "nullValueColumns: " + this.toString(this.nullValueColumns) +
-                "\r\n" +
-                ((this.pruningStatistics != null) ? String.valueOf(this.pruningStatistics.getPrunedCombinations()) : "-") + " candidates pruned by statistical pruning\r\n\t" +
-                "\r\n" +
-                "columnSizes: " + ((this.columnSizes != null) ? CollectionUtils.concat(this.columnSizes, ", ") : "-") + "\r\n" +
-                "numEmptyColumns: " + ((this.columnSizes != null) ? String.valueOf(CollectionUtils.countN(this.columnSizes, 0)) : "-") + "\r\n" +
-                "\r\n" +
-                "activeAttributesPerBucketLevel: " + ((this.activeAttributesPerBucketLevel != null) ? CollectionUtils.concat(this.activeAttributesPerBucketLevel, ", ") : "-") + "\r\n" +
-                "naryActiveAttributesPerBucketLevel: " + ((this.naryActiveAttributesPerBucketLevel == null) ? "-" : CollectionUtils.concat(this.naryActiveAttributesPerBucketLevel, ", ")) + "\r\n" +
-                "\r\n" +
-                "spillCounts: " + ((this.spillCounts != null) ? CollectionUtils.concat(this.spillCounts, ", ") : "-") + "\r\n" +
-                "narySpillCounts: " + ((this.narySpillCounts == null) ? "-" : CollectionUtils.concat(this.narySpillCounts, ", ", "\r\n")) + "\r\n" +
-                "\r\n" +
-                "refinements: " + ((this.refinements != null) ? CollectionUtils.concat(this.refinements, ", ") : "-") + "\r\n" +
-                "naryRefinements: " + ((this.naryRefinements == null) ? "-" : CollectionUtils.concat(this.naryRefinements, ", ", "\r\n")) + "\r\n" +
-                "\r\n" +
-                "unaryStatisticTime: " + this.unaryStatisticTime + "\r\n" +
-                "unaryLoadTime: " + this.unaryLoadTime + "\r\n" +
-                "unaryCompareTime: " + this.unaryCompareTime + "\r\n" +
-                "naryGenerationTime: " + this.naryGenerationTime + "\r\n" +
-                "naryLoadTime: " + this.naryLoadTime + "\r\n" +
-                "naryCompareTime: " + this.naryCompareTime + "\r\n" +
-                "outputTime: " + this.outputTime;
-    }
-
-    private String toString(OpenBitSet o) {
-        StringBuilder builder = new StringBuilder("[");
-        for (int i = 0; i < o.length(); i++)
-            builder.append((o.get(i)) ? 1 : 0);
-        builder.append("]");
-        return builder.toString();
+        return PrintUtils.toString(this);
     }
 
     protected String getAuthorName() {
-        return "Thorsten Papenbrock";
+        return "Jakob Leander Müller & Thorsten Papenbrock";
     }
 
     protected String getDescriptionText() {
-        return "Divide and Conquer-based IND discovery";
+        return "Partial Divide and Conquer-based IND discovery";
     }
 
     public void execute() throws AlgorithmExecutionException {
-        // Disable Logging (FastSet sometimes complains about skewed key distributions with lots of WARNINGs)
+        // Disable Logging (FastSet sometimes complains about skewed key distributions with lots of warnings)
         LoggingUtils.disableLogging();
 
         try {
@@ -169,7 +111,7 @@ public class BINDER {
             // Phase 0: Initialization (Collect basic statistics) //
             ////////////////////////////////////////////////////////
             this.unaryStatisticTime = System.currentTimeMillis();
-            this.initialize();
+            Initializer.initialize(this);
             this.unaryStatisticTime = System.currentTimeMillis() - this.unaryStatisticTime;
 
             //////////////////////////////////////////////////////
@@ -209,77 +151,6 @@ public class BINDER {
             // Clean temp
             if (this.cleanTemp)
                 FileUtils.cleanDirectory(this.tempFolder);
-        }
-    }
-
-    private void initialize() throws InputGenerationException, SQLException, AlgorithmConfigurationException {
-        System.out.println("Initializing ...");
-
-        // Ensure the presence of an input generator
-        if (this.fileInputGenerator == null)
-            throw new InputGenerationException("No input generator specified!");
-
-        // Initialize temp folder
-        this.tempFolder = new File(this.tempFolderPath + File.separator + "temp");
-
-        // Clean temp if there are files from previous runs that may pollute this run
-        FileUtils.cleanDirectory(this.tempFolder);
-
-        // Initialize memory management
-        this.availableMemory = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getMax();
-        this.maxMemoryUsage = (long) (this.availableMemory * (this.maxMemoryUsagePercentage / 100.0f));
-
-        // Query meta data for input tables
-        this.tableColumnStartIndexes = new int[this.tableNames.length];
-        this.columnNames = new ArrayList<>();
-        this.columnTypes = new ArrayList<>();
-
-        for (int tableIndex = 0; tableIndex < this.tableNames.length; tableIndex++) {
-            this.tableColumnStartIndexes[tableIndex] = this.columnNames.size();
-
-            this.collectStatisticsFrom(this.fileInputGenerator[tableIndex]);
-        }
-
-        this.numColumns = this.columnNames.size();
-
-        this.activeAttributesPerBucketLevel = new IntArrayList(this.numBucketsPerColumn);
-
-        this.spillCounts = new int[this.numColumns];
-        for (int columnNumber = 0; columnNumber < this.numColumns; columnNumber++)
-            this.spillCounts[columnNumber] = 0;
-
-        this.refinements = new int[this.numBucketsPerColumn];
-        for (int bucketNumber = 0; bucketNumber < this.numBucketsPerColumn; bucketNumber++)
-            this.refinements[bucketNumber] = 0;
-
-        this.nullValueColumns = new OpenBitSet(this.columnNames.size());
-
-        this.pruningStatistics = new PruningStatistics();
-
-        // Build an index that assigns the columns to their tables, because the n-ary detection can only group those attributes that belong to the same table and the foreign key detection also only groups attributes from different tables.
-        this.column2table = new int[this.numColumns];
-        int table = 0;
-        for (int i = 0; i < this.tableColumnStartIndexes.length; i++) {
-            int currentStart = this.tableColumnStartIndexes[i];
-            int nextStart = ((i + 1) == this.tableColumnStartIndexes.length) ? this.numColumns : this.tableColumnStartIndexes[i + 1];
-
-            for (int j = currentStart; j < nextStart; j++)
-                this.column2table[j] = table;
-            table++;
-        }
-    }
-
-    private void collectStatisticsFrom(RelationalInputGenerator inputGenerator) throws InputGenerationException, AlgorithmConfigurationException {
-        RelationalInput input = null;
-        try {
-            // Query attribute names and types
-            input = inputGenerator.generateNewCopy();
-            for (String columnName : input.columnNames()) {
-                this.columnNames.add(columnName);
-                this.columnTypes.add("String"); // TODO: Column types as parameter or from the file?
-            }
-        } finally {
-            FileUtils.close(input);
         }
     }
 
@@ -985,7 +856,6 @@ public class BINDER {
                             numValuesSinceLastMemoryCheck++;
                             numValuesInAttributeCombination[attributeCombinationNumber] = numValuesInAttributeCombination[attributeCombinationNumber] + 1;
                         }
-                        //this.pruningStatistics.addValue(naryOffset + attributeCombinationNumber, bucketNumber, value); // TODO: Remove?
 
                         // Occasionally check the memory consumption
                         if (numValuesSinceLastMemoryCheck >= this.memoryCheckFrequency) {
@@ -1050,9 +920,6 @@ public class BINDER {
         ////////////////////////////////////////////////////
         // Validation (Successively check all candidates) //
         ////////////////////////////////////////////////////
-
-        // Apply statistical pruning
-        // TODO ...
 
         // Iterate the buckets for all remaining INDs until the end is reached or no more INDs exist
         BitSet activeAttributeCombinations = new BitSet(attributeCombinations.size());
