@@ -8,7 +8,10 @@ import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.AlgorithmExecutionException;
 import de.metanome.algorithm_integration.ColumnIdentifier;
 import de.metanome.algorithm_integration.ColumnPermutation;
-import de.metanome.algorithm_integration.input.*;
+import de.metanome.algorithm_integration.input.InputGenerationException;
+import de.metanome.algorithm_integration.input.InputIterationException;
+import de.metanome.algorithm_integration.input.RelationalInput;
+import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import de.metanome.algorithm_integration.result_receiver.ColumnNameMismatchException;
 import de.metanome.algorithm_integration.result_receiver.CouldNotReceiveResultException;
 import de.metanome.algorithm_integration.result_receiver.InclusionDependencyResultReceiver;
@@ -29,7 +32,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -51,7 +53,7 @@ public class BINDER {
     protected int memoryCheckFrequency = 100; // Number of new, i.e., so far unseen values during bucketing that trigger a memory consumption check
     protected int maxMemoryUsagePercentage = 60; // The algorithm spills to disc if memory usage exceeds X% of available memory
 
-	private int numColumns;
+    private int numColumns;
     private long availableMemory;
     private long maxMemoryUsage;
 
@@ -68,7 +70,6 @@ public class BINDER {
 
     private Map<AttributeCombination, List<AttributeCombination>> naryDep2ref = null;
     private int[] column2table = null;
-    private String valueSeparator = "#";
     private int numNaryINDs = 0;
 
     private OpenBitSet nullValueColumns;
@@ -94,8 +95,8 @@ public class BINDER {
 
     @Override
     public String toString() {
-        String input = "-";
-		input = this.fileInputGenerator[0].getClass().getName() + " (" + this.fileInputGenerator.length + ")";
+        String input;
+        input = this.fileInputGenerator[0].getClass().getName() + " (" + this.fileInputGenerator.length + ")";
 
         return "BINDER: \r\n\t" +
                 "input: " + input + "\r\n\t" +
@@ -211,7 +212,7 @@ public class BINDER {
         }
     }
 
-    private void initialize() throws InputGenerationException, SQLException, InputIterationException, AlgorithmConfigurationException {
+    private void initialize() throws InputGenerationException, SQLException, AlgorithmConfigurationException {
         System.out.println("Initializing ...");
 
         // Ensure the presence of an input generator
@@ -230,13 +231,13 @@ public class BINDER {
 
         // Query meta data for input tables
         this.tableColumnStartIndexes = new int[this.tableNames.length];
-        this.columnNames = new ArrayList<String>();
-        this.columnTypes = new ArrayList<String>();
+        this.columnNames = new ArrayList<>();
+        this.columnTypes = new ArrayList<>();
 
         for (int tableIndex = 0; tableIndex < this.tableNames.length; tableIndex++) {
             this.tableColumnStartIndexes[tableIndex] = this.columnNames.size();
 
-          	this.collectStatisticsFrom(this.fileInputGenerator[tableIndex]);
+            this.collectStatisticsFrom(this.fileInputGenerator[tableIndex]);
         }
 
         this.numColumns = this.columnNames.size();
@@ -268,26 +269,7 @@ public class BINDER {
         }
     }
 
-    private void collectStatisticsFrom(DatabaseConnectionGenerator inputGenerator, int tableIndex) throws InputGenerationException, AlgorithmConfigurationException {
-        ResultSet resultSet = null;
-        try {
-            // Query attribute names and types
-            resultSet = inputGenerator.generateResultSetFromSql(this.dao.buildColumnMetaQuery(this.databaseName, this.tableNames[tableIndex]));
-            this.dao.extract(this.columnNames, new ArrayList<String>(), this.columnTypes, resultSet);
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new InputGenerationException(e.getMessage());
-        } finally {
-            DatabaseUtils.close(resultSet);
-            try {
-                inputGenerator.closeAllStatements();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private void collectStatisticsFrom(RelationalInputGenerator inputGenerator) throws InputIterationException, InputGenerationException, AlgorithmConfigurationException {
+    private void collectStatisticsFrom(RelationalInputGenerator inputGenerator) throws InputGenerationException, AlgorithmConfigurationException {
         RelationalInput input = null;
         try {
             // Query attribute names and types
@@ -322,9 +304,9 @@ public class BINDER {
             int startTableColumnIndex = this.tableColumnStartIndexes[tableIndex];
 
             // Initialize buckets
-            List<List<Set<String>>> buckets = new ArrayList<List<Set<String>>>(numTableColumns);
+            List<List<Set<String>>> buckets = new ArrayList<>(numTableColumns);
             for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
-                List<Set<String>> attributeBuckets = new ArrayList<Set<String>>();
+                List<Set<String>> attributeBuckets = new ArrayList<>();
                 for (int bucketNumber = 0; bucketNumber < this.numBucketsPerColumn; bucketNumber++)
                     attributeBuckets.add(new HashSet<String>());
                 buckets.add(attributeBuckets);
@@ -429,7 +411,7 @@ public class BINDER {
         // Phase 2.1: Pruning (Dismiss first candidates early) //
         /////////////////////////////////////////////////////////
 
-        // Setup the initial INDs using type information
+        // Set up the initial INDs using type information
         IntArrayList strings = new IntArrayList(this.numColumns / 2);
         IntArrayList numerics = new IntArrayList(this.numColumns / 2);
         IntArrayList temporals = new IntArrayList();
@@ -446,8 +428,8 @@ public class BINDER {
         }
 
         // Empty attributes can directly be placed in the output as they are contained in everything else; no empty attribute needs to be checked
-        Int2ObjectOpenHashMap<IntSingleLinkedList> dep2refFinal = new Int2ObjectOpenHashMap<IntSingleLinkedList>(this.numColumns);
-        Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs = new Int2ObjectOpenHashMap<IntSingleLinkedList>(this.numColumns);
+        Int2ObjectOpenHashMap<IntSingleLinkedList> dep2refFinal = new Int2ObjectOpenHashMap<>(this.numColumns);
+        Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs = new Int2ObjectOpenHashMap<>(this.numColumns);
         this.fetchCandidates(strings, attribute2Refs, dep2refFinal);
         this.fetchCandidates(numerics, attribute2Refs, dep2refFinal);
         this.fetchCandidates(temporals, attribute2Refs, dep2refFinal);
@@ -479,8 +461,8 @@ public class BINDER {
                     break levelloop;
 
                 // Load next bucket level as two stage index
-                Int2ObjectOpenHashMap<List<String>> attribute2Bucket = new Int2ObjectOpenHashMap<List<String>>(this.numColumns);
-                Map<String, IntArrayList> invertedIndex = new HashMap<String, IntArrayList>();
+                Int2ObjectOpenHashMap<List<String>> attribute2Bucket = new Int2ObjectOpenHashMap<>(this.numColumns);
+                Map<String, IntArrayList> invertedIndex = new HashMap<>();
                 for (int attribute = activeAttributes.nextSetBit(0); attribute >= 0; attribute = activeAttributes.nextSetBit(attribute + 1)) {
                     // Build the index
                     List<String> bucket = this.readBucketAsList(attribute, bucketNumber, subBucketNumber);
@@ -585,7 +567,7 @@ public class BINDER {
     }
 
     private void calculateBucketComparisonOrder(int[] emptyBuckets) {
-        List<Level> levels = new ArrayList<Level>(this.numColumns);
+        List<Level> levels = new ArrayList<>(this.numColumns);
         for (int level = 0; level < this.numBucketsPerColumn; level++)
             levels.add(new Level(level, emptyBuckets[level]));
         Collections.sort(levels);
@@ -600,11 +582,11 @@ public class BINDER {
         String bucketFilePath = this.getBucketFilePath(attributeNumber, bucketNumber, subBucketNumber);
         this.writeToDisk(bucketFilePath, values);
 
-        // Add the size of the written written values to the size of the current attribute
+        // Add the size of the written values to the size of the current attribute
         long size = this.columnSizes.getLong(attributeNumber);
-		// Bytes that each value requires in the comparison phase for the indexes
-		int overheadPerValueForIndexes = 64;
-		for (String value : values)
+        // Bytes that each value requires in the comparison phase for the indexes
+        int overheadPerValueForIndexes = 64;
+        for (String value : values)
             size = size + MeasurementUtils.sizeOf64(value) + overheadPerValueForIndexes;
         this.columnSizes.set(attributeNumber, size);
     }
@@ -616,9 +598,8 @@ public class BINDER {
         BufferedWriter writer = null;
         try {
             writer = FileUtils.buildFileWriter(bucketFilePath, true);
-            Iterator<String> valueIterator = values.iterator();
-            while (valueIterator.hasNext()) {
-                writer.write(valueIterator.next());
+            for (String value : values) {
+                writer.write(value);
                 writer.newLine();
             }
             writer.flush();
@@ -631,7 +612,7 @@ public class BINDER {
         if ((this.attribute2subBucketsCache != null) && (this.attribute2subBucketsCache.containsKey(attributeNumber)))
             return this.attribute2subBucketsCache.get(attributeNumber).get(subBucketNumber);
 
-        List<String> bucket = new ArrayList<String>(); // Reading buckets into Lists keeps duplicates within these buckets
+        List<String> bucket = new ArrayList<>(); // Reading buckets into Lists keeps duplicates within these buckets
         String bucketFilePath = this.getBucketFilePath(attributeNumber, bucketNumber, subBucketNumber);
         this.readFromDisk(bucketFilePath, bucket);
         return bucket;
@@ -643,7 +624,7 @@ public class BINDER {
             return;
 
         BufferedReader reader = null;
-        String value = null;
+        String value;
         try {
             reader = FileUtils.buildFileReader(bucketFilePath);
             while ((value = reader.readLine()) != null)
@@ -714,20 +695,18 @@ public class BINDER {
         else
             this.naryRefinements.get(this.naryRefinements.size() - 1)[level] = numSubBuckets;
 
-        this.attribute2subBucketsCache = new Int2ObjectOpenHashMap<List<List<String>>>(numSubBuckets);
+        this.attribute2subBucketsCache = new Int2ObjectOpenHashMap<>(numSubBuckets);
 
         // Refine
         for (int attribute = activeAttributes.nextSetBit(0); attribute >= 0; attribute = activeAttributes.nextSetBit(attribute + 1)) {
             int attributeIndex = attribute + attributeOffset;
 
-            List<List<String>> subBuckets = new ArrayList<List<String>>(numSubBuckets);
-            //int expectedNewBucketSize = (int)(bucket.size() * (1.2f / numSubBuckets)); // The expected size is bucket.size()/subBuckets and we add 20% to it to avoid resizing
-            //int expectedNewBucketSize = (int)(this.columnSizes.getLong(attributeIndex) / this.numBucketsPerColumn / 80); // We estimate an average String size of 8 chars, hence 64+2*8=80 byte
+            List<List<String>> subBuckets = new ArrayList<>(numSubBuckets);
             for (int subBucket = 0; subBucket < numSubBuckets; subBucket++)
                 subBuckets.add(new ArrayList<String>());
 
             BufferedReader reader = null;
-            String value = null;
+            String value;
             boolean spilled = false;
             try {
                 reader = this.getBucketReader(attributeIndex, level, -1);
@@ -784,14 +763,14 @@ public class BINDER {
 
         // Initialize counters
         this.naryActiveAttributesPerBucketLevel = new IntArrayList();
-        this.narySpillCounts = new ArrayList<int[]>();
-        this.naryRefinements = new ArrayList<int[]>();
+        this.narySpillCounts = new ArrayList<>();
+        this.naryRefinements = new ArrayList<>();
 
         // Initialize nPlusOneAryDep2ref with unary dep2ref
-        Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<AttributeCombination, List<AttributeCombination>>();
+        Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<>();
         for (int dep : this.dep2ref.keySet()) {
             AttributeCombination depAttributeCombination = new AttributeCombination(this.column2table[dep], dep);
-            List<AttributeCombination> refAttributeCombinations = new LinkedList<AttributeCombination>();
+            List<AttributeCombination> refAttributeCombinations = new LinkedList<>();
 
             ElementIterator refIterator = this.dep2ref.get(dep).elementIterator();
             while (refIterator.hasNext()) {
@@ -804,7 +783,7 @@ public class BINDER {
         int naryLevel = 1;
 
         // Generate, bucketize and test the n-ary INDs level-wise
-        this.naryDep2ref = new HashMap<AttributeCombination, List<AttributeCombination>>();
+        this.naryDep2ref = new HashMap<>();
         this.naryGenerationTime = new LongArrayList();
         this.naryLoadTime = new LongArrayList();
         this.naryCompareTime = new LongArrayList();
@@ -819,11 +798,10 @@ public class BINDER {
                 break;
 
             // Collect all attribute combinations of the current level that are possible refs or deps and enumerate them
-            Set<AttributeCombination> attributeCombinationSet = new HashSet<AttributeCombination>();
-            attributeCombinationSet.addAll(nPlusOneAryDep2ref.keySet());
+            Set<AttributeCombination> attributeCombinationSet = new HashSet<>(nPlusOneAryDep2ref.keySet());
             for (List<AttributeCombination> columnCombination : nPlusOneAryDep2ref.values())
                 attributeCombinationSet.addAll(columnCombination);
-            List<AttributeCombination> attributeCombinations = new ArrayList<AttributeCombination>(attributeCombinationSet);
+            List<AttributeCombination> attributeCombinations = new ArrayList<>(attributeCombinationSet);
 
             // Extend the columnSize array
             for (int i = 0; i < attributeCombinations.size(); i++)
@@ -862,7 +840,7 @@ public class BINDER {
     }
 
     private Map<AttributeCombination, List<AttributeCombination>> generateNPlusOneAryCandidates(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref) {
-        Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<AttributeCombination, List<AttributeCombination>>();
+        Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<>();
 
         if ((naryDep2ref == null) || (naryDep2ref.isEmpty()))
             return nPlusOneAryDep2ref;
@@ -880,7 +858,7 @@ public class BINDER {
                     continue;
 
                 // Ensure same prefix
-                if (!this.samePrefix(depPivot, depExtension))
+                if (this.notSamePrefix(depPivot, depExtension))
                     continue;
 
                 int depPivotAttr = depPivot.getAttributes()[previousSize - 1];
@@ -898,7 +876,7 @@ public class BINDER {
                             continue;
 
                         // Ensure same prefix
-                        if (!this.samePrefix(refPivot, refExtension))
+                        if (this.notSamePrefix(refPivot, refExtension))
                             continue;
 
                         int refPivotAttr = refPivot.getAttributes()[previousSize - 1];
@@ -935,28 +913,16 @@ public class BINDER {
         return nPlusOneAryDep2ref;
     }
 
-    private boolean samePrefix(AttributeCombination combination1, AttributeCombination combination2) {
+    private boolean notSamePrefix(AttributeCombination combination1, AttributeCombination combination2) {
         for (int i = 0; i < combination1.size() - 1; i++)
             if (combination1.getAttributes()[i] != combination2.getAttributes()[i])
-                return false;
-        return true;
-    }
-
-    private boolean validAttributeForNaryCandidates(int attribute) {
-        // Do not use empty attributes
-        if (this.columnSizes.getLong(attribute) == 0)
-            return false;
-
-        // Do not use CLOB or BLOB types; BINDER can handle this, but MIND cannot due to the use of SQL-join-checks
-        if (DatabaseUtils.isLargeObject(this.columnTypes.get(attribute)))
-            return false;
-
-        return true;
+                return true;
+        return false;
     }
 
     private void naryBucketize(List<AttributeCombination> attributeCombinations, int naryOffset, int[] narySpillCounts) throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
         // Identify the relevant attribute combinations for the different tables
-        List<IntArrayList> table2attributeCombinationNumbers = new ArrayList<IntArrayList>(this.tableNames.length);
+        List<IntArrayList> table2attributeCombinationNumbers = new ArrayList<>(this.tableNames.length);
         for (int tableNumber = 0; tableNumber < this.tableNames.length; tableNumber++)
             table2attributeCombinationNumbers.add(new IntArrayList());
         for (int attributeCombinationNumber = 0; attributeCombinationNumber < attributeCombinations.size(); attributeCombinationNumber++)
@@ -968,7 +934,6 @@ public class BINDER {
             emptyBuckets[levelNumber] = 0;
 
         for (int tableIndex = 0; tableIndex < this.tableNames.length; tableIndex++) {
-            String tableName = this.tableNames[tableIndex];
             int numTableAttributeCombinations = table2attributeCombinationNumbers.get(tableIndex).size();
             int startTableColumnIndex = this.tableColumnStartIndexes[tableIndex];
 
@@ -976,9 +941,9 @@ public class BINDER {
                 continue;
 
             // Initialize buckets
-            Int2ObjectOpenHashMap<List<Set<String>>> buckets = new Int2ObjectOpenHashMap<List<Set<String>>>(numTableAttributeCombinations);
+            Int2ObjectOpenHashMap<List<Set<String>>> buckets = new Int2ObjectOpenHashMap<>(numTableAttributeCombinations);
             for (int attributeCombinationNumber : table2attributeCombinationNumbers.get(tableIndex)) {
-                List<Set<String>> attributeCombinationBuckets = new ArrayList<Set<String>>();
+                List<Set<String>> attributeCombinationBuckets = new ArrayList<>();
                 for (int bucketNumber = 0; bucketNumber < this.numBucketsPerColumn; bucketNumber++)
                     attributeCombinationBuckets.add(new HashSet<String>());
                 buckets.put(attributeCombinationNumber, attributeCombinationBuckets);
@@ -1002,15 +967,17 @@ public class BINDER {
                         AttributeCombination attributeCombination = attributeCombinations.get(attributeCombinationNumber);
 
                         boolean anyNull = false;
-                        List<String> attributeCombinationValues = new ArrayList<String>(attributeCombination.getAttributes().length);
+                        List<String> attributeCombinationValues = new ArrayList<>(attributeCombination.getAttributes().length);
                         for (int attribute : attributeCombination.getAttributes()) {
                             String attributeValue = values.get(attribute - startTableColumnIndex);
-                            if (anyNull = attributeValue == null) break;
+                            anyNull = (attributeValue == null);
+                            if (anyNull) break;
                             attributeCombinationValues.add(attributeValue);
                         }
                         if (anyNull) continue;
 
-                        String value = CollectionUtils.concat(attributeCombinationValues, this.valueSeparator);
+                        String valueSeparator = "#";
+                        String value = CollectionUtils.concat(attributeCombinationValues, valueSeparator);
 
                         // Bucketize
                         int bucketNumber = this.calculateBucketFor(value);
@@ -1102,8 +1069,8 @@ public class BINDER {
                     break levelloop;
 
                 // Load next bucket level as two stage index
-                Int2ObjectOpenHashMap<List<String>> attributeCombination2Bucket = new Int2ObjectOpenHashMap<List<String>>();
-                Map<String, IntArrayList> invertedIndex = new HashMap<String, IntArrayList>();
+                Int2ObjectOpenHashMap<List<String>> attributeCombination2Bucket = new Int2ObjectOpenHashMap<>();
+                Map<String, IntArrayList> invertedIndex = new HashMap<>();
                 for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination = activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
                     // Build the index
                     List<String> bucket = this.readBucketAsList(naryOffset + attributeCombination, bucketNumber, subBucketNumber);
@@ -1163,7 +1130,7 @@ public class BINDER {
     }
 
     private void prune(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, IntArrayList attributeCombinationGroupIndexes, List<AttributeCombination> attributeCombinations) {
-        List<AttributeCombination> attributeCombinationGroup = new ArrayList<AttributeCombination>(attributeCombinationGroupIndexes.size());
+        List<AttributeCombination> attributeCombinationGroup = new ArrayList<>(attributeCombinationGroupIndexes.size());
         for (int attributeCombinationIndex : attributeCombinationGroupIndexes)
             attributeCombinationGroup.add(attributeCombinations.get(attributeCombinationIndex));
 
@@ -1217,7 +1184,7 @@ public class BINDER {
     private ColumnPermutation buildColumnPermutationFor(AttributeCombination attributeCombination) {
         String tableName = this.tableNames[attributeCombination.getTable()];
 
-        List<ColumnIdentifier> columnIdentifiers = new ArrayList<ColumnIdentifier>(attributeCombination.getAttributes().length);
+        List<ColumnIdentifier> columnIdentifiers = new ArrayList<>(attributeCombination.getAttributes().length);
         for (int attributeIndex : attributeCombination.getAttributes())
             columnIdentifiers.add(new ColumnIdentifier(tableName, this.columnNames.get(attributeIndex)));
 
