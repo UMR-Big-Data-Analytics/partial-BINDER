@@ -2,6 +2,7 @@ package binder.core;
 
 import binder.io.FileInputIterator;
 import binder.io.InputIterator;
+import binder.runner.Config;
 import binder.structures.AttributeCombination;
 import binder.utils.*;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
@@ -74,6 +75,7 @@ public class BINDER {
     List<String> columnNames = null;
     List<String> columnTypes = null;
     int[] column2table = null;
+    protected Config config;
     private Int2ObjectOpenHashMap<IntSingleLinkedList> dep2ref = null;
     private Map<AttributeCombination, List<AttributeCombination>> naryDep2ref = null;
 
@@ -503,7 +505,7 @@ public class BINDER {
             // Load data
             InputIterator inputIterator = null;
             try {
-                inputIterator = new FileInputIterator(this.fileInputGenerator[tableIndex], this.inputRowLimit);
+                inputIterator = new FileInputIterator(this.tableNames[tableIndex], this.config, this.inputRowLimit);
 
                 while (inputIterator.next()) {
                     List<String> values = inputIterator.getValues();

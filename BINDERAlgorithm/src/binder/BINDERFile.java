@@ -3,6 +3,7 @@ package binder;
 import java.io.File;
 import java.util.ArrayList;
 
+import binder.runner.Config;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.AlgorithmExecutionException;
 import de.metanome.algorithm_integration.algorithm_types.BooleanParameterAlgorithm;
@@ -27,7 +28,11 @@ public class BINDERFile extends BINDER implements InclusionDependencyAlgorithm, 
 
 	public enum Identifier {
 		INPUT_FILES, INPUT_ROW_LIMIT, TEMP_FOLDER_PATH, CLEAN_TEMP, DETECT_NARY, MAX_NARY_LEVEL, FILTER_KEY_FOREIGNKEYS, NUM_BUCKETS_PER_COLUMN, MEMORY_CHECK_FREQUENCY, MAX_MEMORY_USAGE_PERCENTAGE
-	};
+	}
+
+	public void setConfig(Config config) {
+		this.config = config;
+	}
 	
 	@Override
 	public ArrayList<ConfigurationRequirement<?>> getConfigurationRequirements() {
@@ -181,11 +186,6 @@ public class BINDERFile extends BINDER implements InclusionDependencyAlgorithm, 
 	}
 	
 	@Override
-	public void execute() throws AlgorithmExecutionException {
-		super.execute();
-	}
-	
-	@Override
 	public String getAuthors() {
 		return this.getAuthorName();
 	}
@@ -194,4 +194,5 @@ public class BINDERFile extends BINDER implements InclusionDependencyAlgorithm, 
 	public String getDescription() {
 		return this.getDescriptionText();
 	}
+
 }

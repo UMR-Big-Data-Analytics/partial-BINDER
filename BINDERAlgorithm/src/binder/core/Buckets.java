@@ -22,6 +22,129 @@ public class Buckets {
     public static void bucketize(BINDER binder) throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
         System.out.print("Bucketizing ... ");
 
+        int[] emptyBuckets = getEmptyBuckets(binder);
+
+        for (int tableIndex = 0; tableIndex < binder.tableNames.length; tableIndex++) {
+            String tableName = binder.tableNames[tableIndex];
+            System.out.print(tableName + " ");
+
+            // get the index where the columns start
+            int startTableColumnIndex = binder.tableColumnStartIndexes[tableIndex];
+            // get the number of columns belonging to the given table
+            int numTableColumns = (binder.tableColumnStartIndexes.length > tableIndex + 1) ? binder.tableColumnStartIndexes[tableIndex + 1] - startTableColumnIndex : binder.numColumns - startTableColumnIndex;
+
+            // Initialize buckets
+            List<List<Set<String>>> buckets = initializeBuckets(binder, numTableColumns);
+
+            // Initialize value counters
+            int numValuesSinceLastMemoryCheck = 0;
+            int[] numValuesInColumn = new int[binder.numColumns];
+            for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
+                numValuesInColumn[columnNumber] = 0;
+            }
+
+            // Load data for the current table
+            InputIterator inputIterator = null;
+            try {
+                inputIterator = new FileInputIterator(tableName, binder.config, binder.inputRowLimit);
+
+                while (inputIterator.next()) {
+                    for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
+                        String value = inputIterator.getValue(columnNumber);
+
+                        if (value == null) {
+                            binder.nullValueColumns.set(startTableColumnIndex + columnNumber);
+                            continue;
+                        }
+                        System.out.println(columnNumber + " " + value);
+                        // Bucketize
+                        int bucketNumber = calculateBucketFor(value, binder.numBucketsPerColumn);
+                        if (buckets.get(columnNumber).get(bucketNumber).add(value)) {
+                            numValuesSinceLastMemoryCheck++;
+                            numValuesInColumn[columnNumber] = numValuesInColumn[columnNumber] + 1;
+                        }
+
+                        // Occasionally check the memory consumption
+                        if (numValuesSinceLastMemoryCheck >= binder.memoryCheckFrequency) {
+                            numValuesSinceLastMemoryCheck = 0;
+
+                            spillTillMemoryUnderThreshold(binder, numTableColumns, startTableColumnIndex, buckets, numValuesInColumn);
+                        }
+                    }
+                }
+            } finally {
+                FileUtils.close(inputIterator);
+            }
+
+            // Write buckets to disk
+            toDisk(binder, emptyBuckets, numTableColumns, startTableColumnIndex, buckets);
+        }
+
+        // Calculate the bucket comparison order from the emptyBuckets to minimize the influence of sparse-attribute-issue
+        calculateBucketComparisonOrder(emptyBuckets, binder.numBucketsPerColumn, binder.numColumns, binder);
+
+        System.out.println();
+    }
+
+    private static List<List<Set<String>>> initializeBuckets(BINDER binder, int numTableColumns) {
+        List<List<Set<String>>> buckets = new ArrayList<>(numTableColumns);
+        for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
+            List<Set<String>> attributeBuckets = new ArrayList<>();
+            for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++)
+                attributeBuckets.add(new HashSet<String>());
+            buckets.add(attributeBuckets);
+        }
+        return buckets;
+    }
+
+    private static void spillTillMemoryUnderThreshold(BINDER binder, int numTableColumns, int startTableColumnIndex, List<List<Set<String>>> buckets, int[] numValuesInColumn) throws IOException {
+        // Spill to disk if necessary
+        while (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() > binder.maxMemoryUsage) {
+            // Identify largest buffer
+            int largestColumnNumber = 0;
+            int largestColumnSize = numValuesInColumn[largestColumnNumber];
+            for (int otherColumnNumber = 1; otherColumnNumber < numTableColumns; otherColumnNumber++) {
+                if (largestColumnSize < numValuesInColumn[otherColumnNumber]) {
+                    largestColumnNumber = otherColumnNumber;
+                    largestColumnSize = numValuesInColumn[otherColumnNumber];
+                }
+            }
+
+            // Write buckets from largest column to disk and empty written buckets
+            int globalLargestColumnIndex = startTableColumnIndex + largestColumnNumber;
+            for (int largeBucketNumber = 0; largeBucketNumber < binder.numBucketsPerColumn; largeBucketNumber++) {
+                writeBucket(binder.tempFolder, globalLargestColumnIndex, largeBucketNumber, -1, buckets.get(largestColumnNumber).get(largeBucketNumber), binder.columnSizes);
+                buckets.get(largestColumnNumber).set(largeBucketNumber, new HashSet<String>());
+            }
+            numValuesInColumn[largestColumnNumber] = 0;
+
+            binder.spillCounts[globalLargestColumnIndex] = binder.spillCounts[globalLargestColumnIndex] + 1;
+
+            System.gc();
+        }
+    }
+
+    private static void toDisk(BINDER binder, int[] emptyBuckets, int numTableColumns, int startTableColumnIndex, List<List<Set<String>>> buckets) throws IOException {
+        for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
+            int globalColumnIndex = startTableColumnIndex + columnNumber;
+            if (binder.spillCounts[globalColumnIndex] == 0) { // if a column was spilled to disk, we do not count empty buckets for this column, because the partitioning distributes the values evenly and hence all buckets should have been populated
+                for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
+                    Set<String> bucket = buckets.get(columnNumber).get(bucketNumber);
+                    if (bucket.size() != 0)
+                        writeBucket(binder.tempFolder, globalColumnIndex, bucketNumber, -1, bucket, binder.columnSizes);
+                    else emptyBuckets[bucketNumber] = emptyBuckets[bucketNumber] + 1;
+                }
+            } else {
+                for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
+                    Set<String> bucket = buckets.get(columnNumber).get(bucketNumber);
+                    if (bucket.size() != 0)
+                        writeBucket(binder.tempFolder, globalColumnIndex, bucketNumber, -1, bucket, binder.columnSizes);
+                }
+            }
+        }
+    }
+
+    private static int[] getEmptyBuckets(BINDER binder) {
         // Initialize the counters that count the empty buckets per bucket level to identify sparse buckets and promising bucket levels for comparison
         int[] emptyBuckets = new int[binder.numBucketsPerColumn];
         for (int levelNumber = 0; levelNumber < binder.numBucketsPerColumn; levelNumber++)
@@ -31,113 +154,7 @@ public class Buckets {
         binder.columnSizes = new LongArrayList(binder.numColumns);
         for (int column = 0; column < binder.numColumns; column++)
             binder.columnSizes.add(0);
-
-        for (int tableIndex = 0; tableIndex < binder.tableNames.length; tableIndex++) {
-            String tableName = binder.tableNames[tableIndex];
-            System.out.print(tableName + " ");
-
-            int numTableColumns = (binder.tableColumnStartIndexes.length > tableIndex + 1) ? binder.tableColumnStartIndexes[tableIndex + 1] - binder.tableColumnStartIndexes[tableIndex] : binder.numColumns - binder.tableColumnStartIndexes[tableIndex];
-            int startTableColumnIndex = binder.tableColumnStartIndexes[tableIndex];
-
-            // Initialize buckets
-            List<List<Set<String>>> buckets = new ArrayList<>(numTableColumns);
-            for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
-                List<Set<String>> attributeBuckets = new ArrayList<>();
-                for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++)
-                    attributeBuckets.add(new HashSet<String>());
-                buckets.add(attributeBuckets);
-            }
-
-            // Initialize value counters
-            int numValuesSinceLastMemoryCheck = 0;
-            int[] numValuesInColumn = new int[binder.numColumns];
-            for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++)
-                numValuesInColumn[columnNumber] = 0;
-
-            // Load data
-            InputIterator inputIterator = null;
-            try {
-                inputIterator = new FileInputIterator(binder.fileInputGenerator[tableIndex], binder.inputRowLimit);
-
-                while (inputIterator.next()) {
-                    for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
-                        String value = inputIterator.getValue(columnNumber);
-
-                        //value = new StringBuilder(value).reverse().toString(); // This is an optimization if urls with long, common prefixes are used to later improve the comparison values
-
-                        if (value == null) {
-                            binder.nullValueColumns.set(startTableColumnIndex + columnNumber);
-                            continue;
-                        }
-
-                        // Bucketize
-                        int bucketNumber = calculateBucketFor(value, binder.numBucketsPerColumn);
-                        if (buckets.get(columnNumber).get(bucketNumber).add(value)) {
-                            numValuesSinceLastMemoryCheck++;
-                            numValuesInColumn[columnNumber] = numValuesInColumn[columnNumber] + 1;
-                        }
-                        //binder.pruningStatistics.addValue(startTableColumnIndex + columnNumber, bucketNumber, value); // TODO: Remove?
-
-                        // Occasionally check the memory consumption
-                        if (numValuesSinceLastMemoryCheck >= binder.memoryCheckFrequency) {
-                            numValuesSinceLastMemoryCheck = 0;
-
-                            // Spill to disk if necessary
-                            while (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() > binder.maxMemoryUsage) {
-                                // Identify largest buffer
-                                int largestColumnNumber = 0;
-                                int largestColumnSize = numValuesInColumn[largestColumnNumber];
-                                for (int otherColumnNumber = 1; otherColumnNumber < numTableColumns; otherColumnNumber++) {
-                                    if (largestColumnSize < numValuesInColumn[otherColumnNumber]) {
-                                        largestColumnNumber = otherColumnNumber;
-                                        largestColumnSize = numValuesInColumn[otherColumnNumber];
-                                    }
-                                }
-
-                                // Write buckets from largest column to disk and empty written buckets
-                                int globalLargestColumnIndex = startTableColumnIndex + largestColumnNumber;
-                                for (int largeBucketNumber = 0; largeBucketNumber < binder.numBucketsPerColumn; largeBucketNumber++) {
-                                    writeBucket(binder.tempFolder, globalLargestColumnIndex, largeBucketNumber, -1, buckets.get(largestColumnNumber).get(largeBucketNumber), binder.columnSizes);
-                                    buckets.get(largestColumnNumber).set(largeBucketNumber, new HashSet<String>());
-                                }
-                                numValuesInColumn[largestColumnNumber] = 0;
-
-                                binder.spillCounts[globalLargestColumnIndex] = binder.spillCounts[globalLargestColumnIndex] + 1;
-
-                                System.gc();
-                            }
-                        }
-                    }
-                }
-            } finally {
-                FileUtils.close(inputIterator);
-            }
-
-            // Write buckets to disk
-            for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
-                int globalColumnIndex = startTableColumnIndex + columnNumber;
-                if (binder.spillCounts[globalColumnIndex] == 0) { // if a column was spilled to disk, we do not count empty buckets for this column, because the partitioning distributes the values evenly and hence all buckets should have been populated
-                    for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
-                        Set<String> bucket = buckets.get(columnNumber).get(bucketNumber);
-                        if (bucket.size() != 0)
-                            writeBucket(binder.tempFolder, globalColumnIndex, bucketNumber, -1, bucket, binder.columnSizes);
-                        else
-                            emptyBuckets[bucketNumber] = emptyBuckets[bucketNumber] + 1;
-                    }
-                } else {
-                    for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
-                        Set<String> bucket = buckets.get(columnNumber).get(bucketNumber);
-                        if (bucket.size() != 0)
-                            writeBucket(binder.tempFolder, globalColumnIndex, bucketNumber, -1, bucket, binder.columnSizes);
-                    }
-                }
-            }
-        }
-
-        // Calculate the bucket comparison order from the emptyBuckets to minimize the influence of sparse-attribute-issue
-        calculateBucketComparisonOrder(emptyBuckets, binder.numBucketsPerColumn, binder.numColumns, binder);
-
-        System.out.println();
+        return emptyBuckets;
     }
 
     static int calculateBucketFor(String value, int numBucketsPerColumn) {
@@ -174,8 +191,7 @@ public class Buckets {
     }
 
     private static void writeToDisk(String bucketFilePath, Collection<String> values) throws IOException {
-        if ((values == null) || (values.isEmpty()))
-            return;
+        if ((values == null) || (values.isEmpty())) return;
 
         BufferedWriter writer = null;
         try {
@@ -202,15 +218,13 @@ public class Buckets {
 
     private static void readFromDisk(String bucketFilePath, Collection<String> values) throws IOException {
         File file = new File(bucketFilePath);
-        if (!file.exists())
-            return;
+        if (!file.exists()) return;
 
         BufferedReader reader = null;
         String value;
         try {
             reader = FileUtils.buildFileReader(bucketFilePath);
-            while ((value = reader.readLine()) != null)
-                values.add(value);
+            while ((value = reader.readLine()) != null) values.add(value);
         } finally {
             FileUtils.close(reader);
         }
@@ -220,8 +234,7 @@ public class Buckets {
         String bucketFilePath = getBucketFilePath(tempFolder, attributeNumber, bucketNumber, subBucketNumber);
 
         File file = new File(bucketFilePath);
-        if (!file.exists())
-            return null;
+        if (!file.exists()) return null;
 
         return FileUtils.buildFileReader(bucketFilePath);
     }
@@ -272,10 +285,8 @@ public class Buckets {
         for (int subBucketNumber = 0; subBucketNumber < numSubBuckets; subBucketNumber++)
             subBucketNumbers[subBucketNumber] = subBucketNumber;
 
-        if (attributeOffset == 0)
-            binder.refinements[level] = numSubBuckets;
-        else
-            binder.naryRefinements.get(binder.naryRefinements.size() - 1)[level] = numSubBuckets;
+        if (attributeOffset == 0) binder.refinements[level] = numSubBuckets;
+        else binder.naryRefinements.get(binder.naryRefinements.size() - 1)[level] = numSubBuckets;
 
         binder.attribute2subBucketsCache = new Int2ObjectOpenHashMap<>(numSubBuckets);
 
@@ -326,8 +337,7 @@ public class Buckets {
             if ((binder.columnSizes.getLong(attributeIndex) / binder.numBucketsPerColumn > maxBucketSize) || spilled)
                 for (int subBucket = 0; subBucket < numSubBuckets; subBucket++)
                     writeBucket(binder.tempFolder, attributeIndex, level, subBucket, subBuckets.get(subBucket), binder.columnSizes);
-            else
-                binder.attribute2subBucketsCache.put(attributeIndex, subBuckets);
+            else binder.attribute2subBucketsCache.put(attributeIndex, subBuckets);
         }
 
         return subBucketNumbers;
