@@ -1,6 +1,5 @@
 package binder.structures;
 
-import binder.structures.PruningStatistics;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntLinkedOpenHashSet;
@@ -9,8 +8,6 @@ import it.unimi.dsi.fastutil.ints.IntListIterator;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-
-import binder.utils.DatabaseUtils;
 
 public class Attribute implements Comparable<Attribute> {
 
@@ -33,7 +30,7 @@ public class Attribute implements Comparable<Attribute> {
 		this.dependents = new IntLinkedOpenHashSet(numAttributes);
 		
 		for (int i = 0; i < numAttributes; i++) {
-			if ((i != this.attributeId) && (DatabaseUtils.matchSameDataTypeClass(attributeTypes.get(i), attributeTypes.get(this.attributeId)))) {
+			if ((i != this.attributeId)) {
 				if (pruningStatistics.isValid(i, this.attributeId))
 					this.dependents.add(i);
 				if (pruningStatistics.isValid(this.attributeId, i))
@@ -94,18 +91,6 @@ public class Attribute implements Comparable<Attribute> {
 	public void removeDependent(int dependent) {
 		this.dependents.rem(dependent);
 	}
-	
-	public boolean hasFinished() {
-		if (this.currentValue == null)
-			return true;
-		return false;
-	}
-
-	public boolean isPruneable() {
-		if (this.referenced.isEmpty() && this.dependents.isEmpty())
-			return true;
-		return false;
-	}
 
 	@Override
 	public int hashCode() {
@@ -128,11 +113,7 @@ public class Attribute implements Comparable<Attribute> {
 	@Override
 	public int compareTo(Attribute other) {
 		if ((this.getCurrentValue() == null) && (other.getCurrentValue() == null)) {
-			if (this.getAttributeId() > other.getAttributeId())
-				return 1;
-			if (this.getAttributeId() < other.getAttributeId())
-				return -1;
-			return 0;
+			return Integer.compare(this.getAttributeId(), other.getAttributeId());
 		}
 		
 		if (this.getCurrentValue() == null)
@@ -142,11 +123,7 @@ public class Attribute implements Comparable<Attribute> {
 		
 		int order = this.getCurrentValue().compareTo(other.getCurrentValue());
 		if (order == 0) {
-			if (this.getAttributeId() > other.getAttributeId())
-				return 1;
-			if (this.getAttributeId() < other.getAttributeId())
-				return -1;
-			return 0;
+			return Integer.compare(this.getAttributeId(), other.getAttributeId());
 		}
 		return order;
 	}

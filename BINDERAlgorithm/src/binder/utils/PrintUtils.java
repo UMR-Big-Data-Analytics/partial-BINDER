@@ -18,7 +18,6 @@ public class PrintUtils {
 
         return "BINDER: \r\n\t" +
                 "input: " + input + "\r\n\t" +
-                "dao: " + ((binder.dao != null) ? binder.dao.getClass().getName() : "-") + "\r\n\t" +
                 "databaseName: " + binder.databaseName + "\r\n\t" +
                 "inputRowLimit: " + binder.inputRowLimit + "\r\n\t" +
                 "resultReceiver: " + ((binder.resultReceiver != null) ? binder.resultReceiver.getClass().getName() : "-") + "\r\n\t" +

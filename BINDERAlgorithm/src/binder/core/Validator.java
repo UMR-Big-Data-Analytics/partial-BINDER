@@ -2,7 +2,6 @@ package binder.core;
 
 import binder.structures.AttributeCombination;
 import binder.structures.IntSingleLinkedList;
-import binder.utils.DatabaseUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
@@ -26,13 +25,6 @@ public class Validator {
         IntArrayList temporal = new IntArrayList();
         IntArrayList unknown = new IntArrayList();
         for (int column = 0; column < binder.numColumns; column++) {
-            if (DatabaseUtils.isString(binder.columnTypes.get(column)))
-                strings.add(column);
-            else if (DatabaseUtils.isNumeric(binder.columnTypes.get(column)))
-                numerics.add(column);
-            else if (DatabaseUtils.isTemporal(binder.columnTypes.get(column)))
-                temporal.add(column);
-            else
                 unknown.add(column);
         }
 

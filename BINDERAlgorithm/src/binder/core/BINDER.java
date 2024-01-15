@@ -33,7 +33,6 @@ public class BINDER {
 
     public RelationalInputGenerator[] fileInputGenerator = null;
     public InclusionDependencyResultReceiver resultReceiver = null;
-    public DataAccessObject dao = null;
     public String[] tableNames = null;
     public String databaseName = null;
     public boolean cleanTemp = true;
