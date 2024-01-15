@@ -28,7 +28,7 @@ public class PrintUtils {
                 "bucketComparisonOrder: " + ((binder.bucketComparisonOrder != null) ? CollectionUtils.concat(binder.bucketComparisonOrder, ", ") : "-") + "\r\n\t" +
                 "memoryCheckFrequency: " + binder.memoryCheckFrequency + "\r\n\t" +
                 "maxMemoryUsagePercentage: " + binder.maxMemoryUsagePercentage + "%\r\n\t" +
-                "availableMemory: " + binder.availableMemory + " byte (spilled when exeeding " + binder.maxMemoryUsage + " byte)\r\n\t" +
+                "availableMemory: " + binder.availableMemory + " byte (spilled when exceeding " + binder.maxMemoryUsage + " byte)\r\n\t" +
                 "numBucketsPerColumn: " + binder.numBucketsPerColumn + "\r\n\t" +
                 "memoryCheckFrequency: " + binder.memoryCheckFrequency + "\r\n\t" +
                 "cleanTemp: " + binder.cleanTemp + "\r\n\t" +
