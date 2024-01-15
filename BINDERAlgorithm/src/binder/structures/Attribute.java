@@ -1,6 +1,6 @@
 package binder.structures;
 
-import de.metanome.algorithms.binder.structures.PruningStatistics;
+import binder.structures.PruningStatistics;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntLinkedOpenHashSet;

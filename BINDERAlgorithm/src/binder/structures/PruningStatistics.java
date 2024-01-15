@@ -1,4 +1,4 @@
-package de.metanome.algorithms.binder.structures;
+package binder.structures;
 
 public class PruningStatistics {
 	
