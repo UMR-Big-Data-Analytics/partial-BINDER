@@ -4,6 +4,8 @@ import binder.io.FileInputIterator;
 import binder.io.InputIterator;
 import binder.runner.Config;
 import binder.structures.AttributeCombination;
+import binder.structures.IntSingleLinkedList;
+import binder.structures.IntSingleLinkedList.ElementIterator;
 import binder.utils.*;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.AlgorithmExecutionException;
@@ -16,12 +18,8 @@ import de.metanome.algorithm_integration.result_receiver.ColumnNameMismatchExcep
 import de.metanome.algorithm_integration.result_receiver.CouldNotReceiveResultException;
 import de.metanome.algorithm_integration.result_receiver.InclusionDependencyResultReceiver;
 import de.metanome.algorithm_integration.results.InclusionDependency;
-import binder.structures.IntSingleLinkedList;
-import binder.structures.IntSingleLinkedList.ElementIterator;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntIterator;
-import it.unimi.dsi.fastutil.ints.IntListIterator;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import org.apache.lucene.util.OpenBitSet;
 
@@ -31,7 +29,6 @@ import java.lang.management.ManagementFactory;
 import java.sql.SQLException;
 import java.util.*;
 
-// Bucketing IND ExtractoR (BINDER)
 public class BINDER {
 
     public RelationalInputGenerator[] fileInputGenerator = null;
@@ -68,14 +65,14 @@ public class BINDER {
     public int[] bucketComparisonOrder = null;
     public LongArrayList columnSizes = null;
     protected String tempFolderPath = "BINDER_temp"; // TODO: Use Metanome temp file functionality here (interface TempFileAlgorithm)
-    protected boolean filterKeyForeignkeys = false;
+    protected boolean filterKeyForeignKeys = false;
     protected int maxNaryLevel = -1;
+    protected Config config;
     Int2ObjectOpenHashMap<List<List<String>>> attribute2subBucketsCache = null;
     int[] tableColumnStartIndexes = null;
     List<String> columnNames = null;
     List<String> columnTypes = null;
     int[] column2table = null;
-    protected Config config;
     Int2ObjectOpenHashMap<IntSingleLinkedList> dep2ref = null;
     private Map<AttributeCombination, List<AttributeCombination>> naryDep2ref = null;
 
@@ -142,10 +139,6 @@ public class BINDER {
                 FileUtils.cleanDirectory(this.tempFolder);
         }
     }
-
-
-
-
 
 
     private void detectNaryViaBucketing() throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
@@ -223,7 +216,7 @@ public class BINDER {
 
             // Check the n-ary IND candidates
             long naryCompareTimeCurrent = System.currentTimeMillis();
-            this.naryCheckViaTwoStageIndexAndLists(nPlusOneAryDep2ref, attributeCombinations, naryOffset);
+            Validator.naryCheckViaTwoStageIndexAndLists(this, nPlusOneAryDep2ref, attributeCombinations, naryOffset);
 
             this.naryDep2ref.putAll(nPlusOneAryDep2ref);
 
@@ -283,15 +276,9 @@ public class BINDER {
                         if (refPivotAttr == refExtensionAttr)
                             continue;
 
-                        // We want the lhs and rhs to be disjunct, because INDs with non-disjunct sides usually don't have practical relevance; remove this check if INDs with overlapping sides are of interest
+                        // We want the lhs and rhs to be disjunctive, because INDs with non-disjunctive sides usually don't have practical relevance; remove this check if INDs with overlapping sides are of interest
                         if ((depPivotAttr == refExtensionAttr) || (depExtensionAttr == refPivotAttr))
                             continue;
-                        //if (nPlusOneDep.contains(nPlusOneRef.getAttributes()[previousSize - 1]) ||
-                        //	nPlusOneRef.contains(nPlusOneDep.getAttributes()[previousSize - 1]))
-                        //	continue;
-
-                        // The new candidate was created with two lhs and their rhs that share the same prefix; but other subsets of the lhs and rhs must also exist if the new candidate is larger than two attributes
-                        // TODO: Test if the other subsets exist as well (because this test is expensive, same prefix of two INDs might be a strong enough filter for now)
 
                         // Merge the dep attributes and ref attributes, respectively
                         AttributeCombination nPlusOneDep = new AttributeCombination(depPivot.getTable(), depPivot.getAttributes(), depExtensionAttr);
@@ -301,8 +288,6 @@ public class BINDER {
                         if (!nPlusOneAryDep2ref.containsKey(nPlusOneDep))
                             nPlusOneAryDep2ref.put(nPlusOneDep, new LinkedList<AttributeCombination>());
                         nPlusOneAryDep2ref.get(nPlusOneDep).add(nPlusOneRef);
-
-//System.out.println(CollectionUtils.concat(nPlusOneDep.getAttributes(), ",") + "c" + CollectionUtils.concat(nPlusOneRef.getAttributes(), ","));
                     }
                 }
             }
@@ -399,7 +384,7 @@ public class BINDER {
                                     }
                                 }
 
-                                // Write buckets from largest column to disk and empty written buckets
+                                // Write buckets from the largest column to disk and empty written buckets
                                 for (int largeBucketNumber = 0; largeBucketNumber < this.numBucketsPerColumn; largeBucketNumber++) {
                                     Bucketizer.writeBucket(this.tempFolder, naryOffset + largestAttributeCombinationNumber, largeBucketNumber, -1, buckets.get(largestAttributeCombinationNumber).get(largeBucketNumber), this.columnSizes);
                                     buckets.get(largestAttributeCombinationNumber).set(largeBucketNumber, new HashSet<String>());
@@ -420,7 +405,7 @@ public class BINDER {
 
             // Write buckets to disk
             for (int attributeCombinationNumber : table2attributeCombinationNumbers.get(tableIndex)) {
-                if (narySpillCounts[attributeCombinationNumber] == 0) { // if a attribute combination was spilled to disk, we do not count empty buckets for this attribute combination, because the partitioning distributes the values evenly and hence all buckets should have been populated
+                if (narySpillCounts[attributeCombinationNumber] == 0) { // if an attribute combination was spilled to disk, we do not count empty buckets for this attribute combination, because the partitioning distributes the values evenly and hence all buckets should have been populated
                     for (int bucketNumber = 0; bucketNumber < this.numBucketsPerColumn; bucketNumber++) {
                         Set<String> bucket = buckets.get(attributeCombinationNumber).get(bucketNumber);
                         if (bucket.size() != 0)
@@ -440,96 +425,6 @@ public class BINDER {
 
         // Calculate the bucket comparison order from the emptyBuckets to minimize the influence of sparse-attribute-issue
         Bucketizer.calculateBucketComparisonOrder(emptyBuckets, this.numBucketsPerColumn, this.numColumns, this);
-    }
-
-    private void naryCheckViaTwoStageIndexAndLists(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations, int naryOffset) throws IOException {
-        ////////////////////////////////////////////////////
-        // Validation (Successively check all candidates) //
-        ////////////////////////////////////////////////////
-
-        // Iterate the buckets for all remaining INDs until the end is reached or no more INDs exist
-        BitSet activeAttributeCombinations = new BitSet(attributeCombinations.size());
-        activeAttributeCombinations.set(0, attributeCombinations.size());
-        levelloop:
-        for (int bucketNumber : this.bucketComparisonOrder) { // TODO: Externalize this code into a method and use return instead of break
-            // Refine the current bucket level if it does not fit into memory at once
-            int[] subBucketNumbers = Bucketizer.refineBucketLevel(this, activeAttributeCombinations, naryOffset, bucketNumber);
-            for (int subBucketNumber : subBucketNumbers) {
-                // Identify all currently active attributes
-                activeAttributeCombinations = this.getActiveAttributeCombinations(activeAttributeCombinations, naryDep2ref, attributeCombinations);
-                this.naryActiveAttributesPerBucketLevel.add(activeAttributeCombinations.cardinality());
-                if (activeAttributeCombinations.isEmpty())
-                    break levelloop;
-
-                // Load next bucket level as two stage index
-                Int2ObjectOpenHashMap<List<String>> attributeCombination2Bucket = new Int2ObjectOpenHashMap<>();
-                Map<String, IntArrayList> invertedIndex = new HashMap<>();
-                for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination = activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
-                    // Build the index
-                    List<String> bucket = Bucketizer.readBucketAsList(this, naryOffset + attributeCombination, bucketNumber, subBucketNumber);
-                    attributeCombination2Bucket.put(attributeCombination, bucket);
-                    // Build the inverted index
-                    for (String value : bucket) {
-                        if (!invertedIndex.containsKey(value))
-                            invertedIndex.put(value, new IntArrayList(2));
-                        invertedIndex.get(value).add(attributeCombination);
-                    }
-                }
-
-                // Check INDs
-                for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination = activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
-                    for (String value : attributeCombination2Bucket.get(attributeCombination)) {
-                        // Break if the attribute combination does not reference any other attribute combination
-                        if (!naryDep2ref.containsKey(attributeCombinations.get(attributeCombination)) || (naryDep2ref.get(attributeCombinations.get(attributeCombination)).isEmpty()))
-                            break;
-
-                        // Continue if the current value has already been handled
-                        if (!invertedIndex.containsKey(value))
-                            continue;
-
-                        // Prune using the group of attributes containing the current value
-                        IntArrayList sameValueGroup = invertedIndex.get(value);
-                        this.prune(naryDep2ref, sameValueGroup, attributeCombinations);
-
-                        // Remove the current value from the index as it has now been handled
-                        invertedIndex.remove(value);
-                    }
-                }
-            }
-        }
-
-        // Format the results
-        Iterator<AttributeCombination> depIterator = naryDep2ref.keySet().iterator();
-        while (depIterator.hasNext()) {
-            if (naryDep2ref.get(depIterator.next()).isEmpty())
-                depIterator.remove();
-        }
-    }
-
-    private BitSet getActiveAttributeCombinations(BitSet previouslyActiveAttributeCombinations, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations) {
-        BitSet activeAttributeCombinations = new BitSet(attributeCombinations.size());
-        for (int attribute = previouslyActiveAttributeCombinations.nextSetBit(0); attribute >= 0; attribute = previouslyActiveAttributeCombinations.nextSetBit(attribute + 1)) {
-            AttributeCombination attributeCombination = attributeCombinations.get(attribute);
-            if (naryDep2ref.containsKey(attributeCombination)) {
-                // All attribute combinations referenced by this attribute are active
-                for (AttributeCombination refAttributeCombination : naryDep2ref.get(attributeCombination))
-                    activeAttributeCombinations.set(attributeCombinations.indexOf(refAttributeCombination));
-                // This attribute combination is active if it references any other attribute
-                if (!naryDep2ref.get(attributeCombination).isEmpty())
-                    activeAttributeCombinations.set(attribute);
-            }
-        }
-        return activeAttributeCombinations;
-    }
-
-    private void prune(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, IntArrayList attributeCombinationGroupIndexes, List<AttributeCombination> attributeCombinations) {
-        List<AttributeCombination> attributeCombinationGroup = new ArrayList<>(attributeCombinationGroupIndexes.size());
-        for (int attributeCombinationIndex : attributeCombinationGroupIndexes)
-            attributeCombinationGroup.add(attributeCombinations.get(attributeCombinationIndex));
-
-        for (AttributeCombination attributeCombination : attributeCombinationGroup)
-            if (naryDep2ref.containsKey(attributeCombination))
-                naryDep2ref.get(attributeCombination).retainAll(attributeCombinationGroup);
     }
 
     private void output() throws CouldNotReceiveResultException, ColumnNameMismatchException {
