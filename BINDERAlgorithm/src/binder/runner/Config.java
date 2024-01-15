@@ -339,7 +339,7 @@ public class Config {
 			break;
 		case NCVOTER_STATEWIDE_SMALL:
 			this.databaseName = "Kaggle\\";
-			this.tableNames = new String[] {"enrollement_schoolmanagement_2"};
+			this.tableNames = new String[] {"enrollement_schoolmanagement_2", "data", "amazon_laptop_prices_v01", "IQ_level", "Employee", "employee_data (1)"};
 			this.inputFileSeparator = ',';
 			this.inputFileHasHeader = true;
 

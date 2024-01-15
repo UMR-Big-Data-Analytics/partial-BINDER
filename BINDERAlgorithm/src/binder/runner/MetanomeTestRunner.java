@@ -1,7 +1,4 @@
 package binder.runner;
-
-import binder.utils.CollectionUtils;
-
 import java.io.File;
 
 public class MetanomeTestRunner {
@@ -23,11 +20,9 @@ public class MetanomeTestRunner {
         System.out.println("(" + runLabel + ") Runtime " + algorithmName + ": " + (System.currentTimeMillis() - time) + " ms");
     }
 
-    private static void wrongArguments(String[] args) {
-        StringBuilder message = new StringBuilder();
-        message.append("\r\nArguments not supported: " + CollectionUtils.concat(args, " "));
-        message.append("\r\nProvide correct values: <algorithm> <database> <dataset> <inputTableLimit>");
-        throw new RuntimeException(message.toString());
+    public static void main(String[] args) {
+        MetanomeTestRunner.run(new Config(Config.Algorithm.BINDER, Config.Database.FILE, Config.Dataset.NCVOTER_STATEWIDE_SMALL, -1, -1), "test");
     }
+
 
 }
