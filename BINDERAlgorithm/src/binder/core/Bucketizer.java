@@ -2,6 +2,7 @@ package binder.core;
 
 import binder.io.FileInputIterator;
 import binder.io.InputIterator;
+import binder.structures.Level;
 import binder.utils.FileUtils;
 import binder.utils.MeasurementUtils;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
@@ -17,7 +18,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.*;
 
-public class Buckets {
+public class Bucketizer {
 
     public static void bucketize(BINDER binder) throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
         System.out.print("Bucketizing ... ");
@@ -165,9 +166,9 @@ public class Buckets {
     }
 
     static void calculateBucketComparisonOrder(int[] emptyBuckets, int numBucketsPerColumn, int numColumns, BINDER binder) {
-        List<de.metanome.algorithms.binder.structures.Level> levels = new ArrayList<>(numColumns);
+        List<Level> levels = new ArrayList<>(numColumns);
         for (int level = 0; level < numBucketsPerColumn; level++)
-            levels.add(new de.metanome.algorithms.binder.structures.Level(level, emptyBuckets[level]));
+            levels.add(new Level(level, emptyBuckets[level]));
         Collections.sort(levels);
 
         binder.bucketComparisonOrder = new int[numBucketsPerColumn];

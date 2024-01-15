@@ -16,8 +16,8 @@ import de.metanome.algorithm_integration.result_receiver.ColumnNameMismatchExcep
 import de.metanome.algorithm_integration.result_receiver.CouldNotReceiveResultException;
 import de.metanome.algorithm_integration.result_receiver.InclusionDependencyResultReceiver;
 import de.metanome.algorithm_integration.results.InclusionDependency;
-import de.metanome.algorithms.binder.structures.IntSingleLinkedList;
-import de.metanome.algorithms.binder.structures.IntSingleLinkedList.ElementIterator;
+import binder.structures.IntSingleLinkedList;
+import binder.structures.IntSingleLinkedList.ElementIterator;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
@@ -76,7 +76,7 @@ public class BINDER {
     List<String> columnTypes = null;
     int[] column2table = null;
     protected Config config;
-    private Int2ObjectOpenHashMap<IntSingleLinkedList> dep2ref = null;
+    Int2ObjectOpenHashMap<IntSingleLinkedList> dep2ref = null;
     private Map<AttributeCombination, List<AttributeCombination>> naryDep2ref = null;
 
     @Override
@@ -108,14 +108,14 @@ public class BINDER {
             // Phase 1: Bucketing (Create and fill the buckets) //
             //////////////////////////////////////////////////////
             this.unaryLoadTime = System.currentTimeMillis();
-            Buckets.bucketize(this);
+            Bucketizer.bucketize(this);
             this.unaryLoadTime = System.currentTimeMillis() - this.unaryLoadTime;
 
             //////////////////////////////////////////////////////
             // Phase 2: Checking (Check INDs using the buckets) //
             //////////////////////////////////////////////////////
             this.unaryCompareTime = System.currentTimeMillis();
-            this.checkViaTwoStageIndexAndLists();
+            Validator.checkViaTwoStageIndexAndLists(this);
             this.unaryCompareTime = System.currentTimeMillis() - this.unaryCompareTime;
 
             /////////////////////////////////////////////////////////
@@ -143,159 +143,9 @@ public class BINDER {
         }
     }
 
-    private void checkViaTwoStageIndexAndLists() throws IOException {
-        System.out.println("Checking ...");
-
-        /////////////////////////////////////////////////////////
-        // Phase 2.1: Pruning (Dismiss first candidates early) //
-        /////////////////////////////////////////////////////////
-
-        // Set up the initial INDs using type information
-        IntArrayList strings = new IntArrayList(this.numColumns / 2);
-        IntArrayList numerics = new IntArrayList(this.numColumns / 2);
-        IntArrayList temporals = new IntArrayList();
-        IntArrayList unknown = new IntArrayList();
-        for (int column = 0; column < this.numColumns; column++) {
-            if (DatabaseUtils.isString(this.columnTypes.get(column)))
-                strings.add(column);
-            else if (DatabaseUtils.isNumeric(this.columnTypes.get(column)))
-                numerics.add(column);
-            else if (DatabaseUtils.isTemporal(this.columnTypes.get(column)))
-                temporals.add(column);
-            else
-                unknown.add(column);
-        }
-
-        // Empty attributes can directly be placed in the output as they are contained in everything else; no empty attribute needs to be checked
-        Int2ObjectOpenHashMap<IntSingleLinkedList> dep2refFinal = new Int2ObjectOpenHashMap<>(this.numColumns);
-        Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs = new Int2ObjectOpenHashMap<>(this.numColumns);
-        this.fetchCandidates(strings, attribute2Refs, dep2refFinal);
-        this.fetchCandidates(numerics, attribute2Refs, dep2refFinal);
-        this.fetchCandidates(temporals, attribute2Refs, dep2refFinal);
-        this.fetchCandidates(unknown, attribute2Refs, dep2refFinal);
-
-        // Apply statistical pruning
-        // TODO ...
-
-        ///////////////////////////////////////////////////////////////
-        // Phase 2.2: Validation (Successively check all candidates) //
-        ///////////////////////////////////////////////////////////////
-
-        // The initially active attributes are all non-empty attributes
-        BitSet activeAttributes = new BitSet(this.numColumns);
-        for (int column = 0; column < this.numColumns; column++)
-            if (this.columnSizes.getLong(column) > 0)
-                activeAttributes.set(column);
-
-        // Iterate the buckets for all remaining INDs until the end is reached or no more INDs exist
-        levelloop:
-        for (int bucketNumber : this.bucketComparisonOrder) { // TODO: Externalize this code into a method and use return instead of break
-            // Refine the current bucket level if it does not fit into memory at once
-            int[] subBucketNumbers = Buckets.refineBucketLevel(this, activeAttributes, 0, bucketNumber);
-            for (int subBucketNumber : subBucketNumbers) {
-                // Identify all currently active attributes
-                activeAttributes = this.getActiveAttributesFromLists(activeAttributes, attribute2Refs);
-                this.activeAttributesPerBucketLevel.add(activeAttributes.cardinality());
-                if (activeAttributes.isEmpty())
-                    break levelloop;
-
-                // Load next bucket level as two stage index
-                Int2ObjectOpenHashMap<List<String>> attribute2Bucket = new Int2ObjectOpenHashMap<>(this.numColumns);
-                Map<String, IntArrayList> invertedIndex = new HashMap<>();
-                for (int attribute = activeAttributes.nextSetBit(0); attribute >= 0; attribute = activeAttributes.nextSetBit(attribute + 1)) {
-                    // Build the index
-                    List<String> bucket = Buckets.readBucketAsList(this, attribute, bucketNumber, subBucketNumber);
-                    attribute2Bucket.put(attribute, bucket);
-                    // Build the inverted index
-                    for (String value : bucket) {
-                        if (!invertedIndex.containsKey(value))
-                            invertedIndex.put(value, new IntArrayList(2));
-                        invertedIndex.get(value).add(attribute);
-                    }
-                }
-
-                // Check INDs
-                for (int attribute = activeAttributes.nextSetBit(0); attribute >= 0; attribute = activeAttributes.nextSetBit(attribute + 1)) {
-                    for (String value : attribute2Bucket.get(attribute)) {
-                        // Break if the attribute does not reference any other attribute
-                        if (attribute2Refs.get(attribute).isEmpty())
-                            break;
-
-                        // Continue if the current value has already been handled
-                        if (!invertedIndex.containsKey(value))
-                            continue;
-
-                        // Prune using the group of attributes containing the current value
-                        IntArrayList sameValueGroup = invertedIndex.get(value);
-                        this.prune(attribute2Refs, sameValueGroup);
-
-                        // Remove the current value from the index as it has now been handled
-                        invertedIndex.remove(value);
-                    }
-                }
-            }
-        }
-
-        // Remove deps that have no refs
-        IntIterator depIterator = attribute2Refs.keySet().iterator();
-        while (depIterator.hasNext()) {
-            if (attribute2Refs.get(depIterator.nextInt()).isEmpty())
-                depIterator.remove();
-        }
-        this.dep2ref = attribute2Refs;
-        this.dep2ref.putAll(dep2refFinal);
-    }
-
-    private void fetchCandidates(IntArrayList columns, Int2ObjectOpenHashMap<IntSingleLinkedList> dep2refToCheck, Int2ObjectOpenHashMap<IntSingleLinkedList> dep2refFinal) {
-        IntArrayList nonEmptyColumns = new IntArrayList(columns.size());
-        for (int column : columns)
-            if (this.columnSizes.getLong(column) > 0)
-                nonEmptyColumns.add(column);
-
-        if (this.filterKeyForeignkeys) {
-            for (int dep : columns) {
-                // Empty columns are no foreign keys
-                if (this.columnSizes.getLong(dep) == 0)
-                    continue;
-
-                // Referenced columns must not have null values and must come from different tables
-                IntArrayList seed = nonEmptyColumns.clone();
-                IntListIterator iterator = seed.iterator();
-                while (iterator.hasNext()) {
-                    int ref = iterator.nextInt();
-                    if ((this.column2table[dep] == this.column2table[ref]) || this.nullValueColumns.get(ref))
-                        iterator.remove();
-                }
-
-                dep2refToCheck.put(dep, new IntSingleLinkedList(seed, dep));
-            }
-        } else {
-            for (int dep : columns) {
-                if (this.columnSizes.getLong(dep) == 0)
-                    dep2refFinal.put(dep, new IntSingleLinkedList(columns, dep));
-                else
-                    dep2refToCheck.put(dep, new IntSingleLinkedList(nonEmptyColumns, dep));
-            }
-        }
-    }
-
-    private void prune(Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs, IntArrayList attributeGroup) {
-        for (int attribute : attributeGroup)
-            attribute2Refs.get(attribute).retainAll(attributeGroup);
-    }
 
 
-    private BitSet getActiveAttributesFromLists(BitSet previouslyActiveAttributes, Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs) {
-        BitSet activeAttributes = new BitSet(this.numColumns);
-        for (int attribute = previouslyActiveAttributes.nextSetBit(0); attribute >= 0; attribute = previouslyActiveAttributes.nextSetBit(attribute + 1)) {
-            // All attributes referenced by this attribute are active
-            attribute2Refs.get(attribute).setOwnValuesIn(activeAttributes);
-            // This attribute is active if it references any other attribute
-            if (!attribute2Refs.get(attribute).isEmpty())
-                activeAttributes.set(attribute);
-        }
-        return activeAttributes;
-    }
+
 
 
     private void detectNaryViaBucketing() throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
@@ -527,7 +377,7 @@ public class BINDER {
                         String value = CollectionUtils.concat(attributeCombinationValues, valueSeparator);
 
                         // Bucketize
-                        int bucketNumber = Buckets.calculateBucketFor(value, this.numBucketsPerColumn);
+                        int bucketNumber = Bucketizer.calculateBucketFor(value, this.numBucketsPerColumn);
                         if (buckets.get(attributeCombinationNumber).get(bucketNumber).add(value)) {
                             numValuesSinceLastMemoryCheck++;
                             numValuesInAttributeCombination[attributeCombinationNumber] = numValuesInAttributeCombination[attributeCombinationNumber] + 1;
@@ -551,7 +401,7 @@ public class BINDER {
 
                                 // Write buckets from largest column to disk and empty written buckets
                                 for (int largeBucketNumber = 0; largeBucketNumber < this.numBucketsPerColumn; largeBucketNumber++) {
-                                    Buckets.writeBucket(this.tempFolder, naryOffset + largestAttributeCombinationNumber, largeBucketNumber, -1, buckets.get(largestAttributeCombinationNumber).get(largeBucketNumber), this.columnSizes);
+                                    Bucketizer.writeBucket(this.tempFolder, naryOffset + largestAttributeCombinationNumber, largeBucketNumber, -1, buckets.get(largestAttributeCombinationNumber).get(largeBucketNumber), this.columnSizes);
                                     buckets.get(largestAttributeCombinationNumber).set(largeBucketNumber, new HashSet<String>());
                                 }
 
@@ -574,7 +424,7 @@ public class BINDER {
                     for (int bucketNumber = 0; bucketNumber < this.numBucketsPerColumn; bucketNumber++) {
                         Set<String> bucket = buckets.get(attributeCombinationNumber).get(bucketNumber);
                         if (bucket.size() != 0)
-                            Buckets.writeBucket(this.tempFolder, naryOffset + attributeCombinationNumber, bucketNumber, -1, bucket, this.columnSizes);
+                            Bucketizer.writeBucket(this.tempFolder, naryOffset + attributeCombinationNumber, bucketNumber, -1, bucket, this.columnSizes);
                         else
                             emptyBuckets[bucketNumber] = emptyBuckets[bucketNumber] + 1;
                     }
@@ -582,14 +432,14 @@ public class BINDER {
                     for (int bucketNumber = 0; bucketNumber < this.numBucketsPerColumn; bucketNumber++) {
                         Set<String> bucket = buckets.get(attributeCombinationNumber).get(bucketNumber);
                         if (bucket.size() != 0)
-                            Buckets.writeBucket(this.tempFolder, naryOffset + attributeCombinationNumber, bucketNumber, -1, bucket, this.columnSizes);
+                            Bucketizer.writeBucket(this.tempFolder, naryOffset + attributeCombinationNumber, bucketNumber, -1, bucket, this.columnSizes);
                     }
                 }
             }
         }
 
         // Calculate the bucket comparison order from the emptyBuckets to minimize the influence of sparse-attribute-issue
-        Buckets.calculateBucketComparisonOrder(emptyBuckets, this.numBucketsPerColumn, this.numColumns, this);
+        Bucketizer.calculateBucketComparisonOrder(emptyBuckets, this.numBucketsPerColumn, this.numColumns, this);
     }
 
     private void naryCheckViaTwoStageIndexAndLists(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations, int naryOffset) throws IOException {
@@ -603,7 +453,7 @@ public class BINDER {
         levelloop:
         for (int bucketNumber : this.bucketComparisonOrder) { // TODO: Externalize this code into a method and use return instead of break
             // Refine the current bucket level if it does not fit into memory at once
-            int[] subBucketNumbers = Buckets.refineBucketLevel(this, activeAttributeCombinations, naryOffset, bucketNumber);
+            int[] subBucketNumbers = Bucketizer.refineBucketLevel(this, activeAttributeCombinations, naryOffset, bucketNumber);
             for (int subBucketNumber : subBucketNumbers) {
                 // Identify all currently active attributes
                 activeAttributeCombinations = this.getActiveAttributeCombinations(activeAttributeCombinations, naryDep2ref, attributeCombinations);
@@ -616,7 +466,7 @@ public class BINDER {
                 Map<String, IntArrayList> invertedIndex = new HashMap<>();
                 for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination = activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
                     // Build the index
-                    List<String> bucket = Buckets.readBucketAsList(this, naryOffset + attributeCombination, bucketNumber, subBucketNumber);
+                    List<String> bucket = Bucketizer.readBucketAsList(this, naryOffset + attributeCombination, bucketNumber, subBucketNumber);
                     attributeCombination2Bucket.put(attributeCombination, bucket);
                     // Build the inverted index
                     for (String value : bucket) {
