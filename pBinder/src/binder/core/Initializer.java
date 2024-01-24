@@ -1,9 +1,9 @@
 package binder.core;
 
+import binder.io.RelationalFileInput;
 import binder.utils.FileUtils;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.input.InputGenerationException;
-import de.metanome.algorithm_integration.input.RelationalInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 
@@ -86,11 +86,11 @@ public class Initializer {
     }
 
     static void collectStatisticsFrom(BINDER binder, RelationalInputGenerator inputGenerator) throws InputGenerationException, AlgorithmConfigurationException {
-        RelationalInput input = null;
+        RelationalFileInput input = null;
         try {
             // Query attribute names and types
-            input = inputGenerator.generateNewCopy();
-            for (String columnName : input.columnNames()) {
+            input = (RelationalFileInput) inputGenerator.generateNewCopy();
+            for (String columnName : input.headerLine) {
                 binder.columnNames.add(columnName);
                 binder.columnTypes.add("String");
             }

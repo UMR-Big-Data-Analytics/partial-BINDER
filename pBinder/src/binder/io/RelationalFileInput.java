@@ -1,16 +1,17 @@
 package binder.io;
 
 import binder.runner.Config;
+import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvValidationException;
-import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
-import de.metanome.algorithm_integration.input.InputGenerationException;
 import de.metanome.algorithm_integration.input.InputIterationException;
 import de.metanome.algorithm_integration.input.RelationalInput;
 
-import java.io.*;
-import java.nio.file.Path;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,9 +19,8 @@ import java.util.List;
 public class RelationalFileInput implements RelationalInput {
 
     protected static final String DEFAULT_HEADER_STRING = "column";
-
+    public List<String> headerLine;
     protected CSVReader CSVReader;
-    protected List<String> headerLine;
     protected List<String> nextLine;
     protected String relationName;
     protected int numberOfColumns = 0;
@@ -40,7 +40,7 @@ public class RelationalFileInput implements RelationalInput {
         this.skipDifferingLines = setting.inputFileSkipDifferingLines;
         this.nullValue = setting.inputFileNullString;
 
-        this.CSVReader = new CSVReader(reader);
+        this.CSVReader = new CSVReaderBuilder(reader).withCSVParser(new CSVParserBuilder().withSeparator(setting.inputFileSeparator).build()).build();
 
         // read the first line
         this.nextLine = readNextLine();
@@ -66,7 +66,7 @@ public class RelationalFileInput implements RelationalInput {
         this.skipDifferingLines = setting.isSkipDifferingLines();
         this.nullValue = setting.getNullValue();
 
-        this.CSVReader = new CSVReader(reader);
+        this.CSVReader = new CSVReaderBuilder(reader).withCSVParser(new CSVParserBuilder().withSeparator(setting.getSeparatorAsChar()).build()).build();
 
         // read the first line
         this.nextLine = readNextLine();
@@ -178,10 +178,6 @@ public class RelationalFileInput implements RelationalInput {
     @Override
     public List<String> columnNames() {
         return headerLine;
-    }
-
-    public int getNumberOfSkippedDifferingLines() {
-        return numberOfSkippedLines;
     }
 
 }

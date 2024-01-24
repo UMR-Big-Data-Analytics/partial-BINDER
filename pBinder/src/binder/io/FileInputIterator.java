@@ -1,8 +1,6 @@
 package binder.io;
 
 import binder.runner.Config;
-import de.metanome.algorithm_integration.AlgorithmConfigurationException;
-import de.metanome.algorithm_integration.input.InputGenerationException;
 import de.metanome.algorithm_integration.input.InputIterationException;
 
 import java.io.BufferedReader;
@@ -18,7 +16,7 @@ public class FileInputIterator implements InputIterator {
     private List<String> record = null;
     private int rowsRead = 0;
 
-    public FileInputIterator(String relationName, Config config, int inputRowLimit) throws InputGenerationException, AlgorithmConfigurationException, InputIterationException, FileNotFoundException {
+    public FileInputIterator(String relationName, Config config, int inputRowLimit) throws InputIterationException, FileNotFoundException {
         this.inputGenerator = new RelationalFileInput(relationName, new BufferedReader(new FileReader(config.inputFolderPath + config.databaseName + relationName)), config);
         this.inputRowLimit = inputRowLimit;
     }
@@ -28,11 +26,11 @@ public class FileInputIterator implements InputIterator {
         if (this.inputGenerator.hasNext() && ((this.inputRowLimit <= 0) || (this.rowsRead < this.inputRowLimit))) {
             List<String> input = this.inputGenerator.next();
             this.record = new ArrayList<>(input.size());
-
             for (String value : input) {
                 // Replace line breaks with the zero-character, because these line breaks would otherwise split values when later written to plane-text buckets
-                if (value != null)
+                if (value != null) {
                     value = value.replaceAll("\n", "\0");
+                }
                 this.record.add(value);
             }
 
