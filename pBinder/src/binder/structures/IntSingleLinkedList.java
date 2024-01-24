@@ -10,10 +10,10 @@ public class IntSingleLinkedList {
 	private Element first = null;
 	private Element last = null;
 	
-	private Collection<Integer> seed = null;
-	private int except = -1;
+	private Collection<Integer> seed;
+	private final int except;
 	
-	public class Element {
+	public static class Element {
 		
 		public int value;
 		public Element next = null;
@@ -27,7 +27,7 @@ public class IntSingleLinkedList {
 		
 		private Element previous = null;
 		private Element current = null;
-		private Element next = null;
+		private Element next;
 		
 		public ElementIterator() {
 			this.next = first;
@@ -42,6 +42,7 @@ public class IntSingleLinkedList {
 			this.current = this.next;
 			if (this.current != null)
 				this.next = this.current.next;
+			assert this.current != null;
 			return this.current.value;
 		}
 		
@@ -59,14 +60,6 @@ public class IntSingleLinkedList {
 
 	public Element getLast() {
 		return this.last;
-	}
-
-	public IntSingleLinkedList() {
-		this(null, -1);
-	}
-	
-	public IntSingleLinkedList(Collection<Integer> seed) {
-		this(seed, -1);
 	}
 
 	public IntSingleLinkedList(Collection<Integer> seed, int except) {
@@ -122,6 +115,11 @@ public class IntSingleLinkedList {
 		return false;
 	}
 
+	/**
+	 * Manipulates the given BitSet by setting all bits to one where there exists an element with value == index of bit.
+	 * @param bitSet A BitSet into which the present values should be encoded. If the bitSet is smaller than the largest
+	 *               value or negative, an IndexOutOfBounce exception will be thrown
+	 */
 	public void setOwnValuesIn(BitSet bitSet) {
 		this.initialize();
 		
