@@ -34,7 +34,7 @@ public class BINDER {
     public InclusionDependencyResultReceiver resultReceiver = null;
     public String[] tableNames = null;
     public String databaseName = null;
-    public boolean cleanTemp = true;
+    public boolean cleanTemp = false;
     public boolean detectNary = false;
     public int inputRowLimit = -1;
     public int numBucketsPerColumn = 10; // Initial number of buckets per column
@@ -62,8 +62,9 @@ public class BINDER {
     public List<int[]> naryRefinements = null;
     public int[] bucketComparisonOrder = null;
     public LongArrayList columnSizes = null;
+    public boolean nullIsNull = true;
     protected String tempFolderPath = "BINDER_temp"; // TODO: Use Metanome temp file functionality here (interface TempFileAlgorithm)
-    protected boolean filterKeyForeignKeys = false;
+    protected boolean nullIsSubset = false;
     protected int maxNaryLevel = -1;
     protected Config config;
     Int2ObjectOpenHashMap<List<Map<String, Long>>> attribute2subBucketsCache = null;
@@ -110,7 +111,8 @@ public class BINDER {
             // Phase 2: Checking (Check INDs using the buckets) //
             //////////////////////////////////////////////////////
             this.unaryCompareTime = System.currentTimeMillis();
-            Validator.checkViaTwoStageIndexAndLists(this);
+            Validator validator = new Validator(this);
+            validator.checkViaTwoStageIndexAndLists();
             this.unaryCompareTime = System.currentTimeMillis() - this.unaryCompareTime;
 
             /////////////////////////////////////////////////////////

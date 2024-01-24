@@ -1,12 +1,8 @@
 package binder;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 
-import binder.io.FileInputIterator;
-import binder.io.RelationalFileInput;
 import binder.runner.Config;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.algorithm_types.BooleanParameterAlgorithm;
@@ -93,7 +89,7 @@ public class BINDERFile extends BINDER implements InclusionDependencyAlgorithm, 
 
 		ConfigurationRequirementBoolean filterKeyForeignKeys = new ConfigurationRequirementBoolean(BINDERFile.Identifier.FILTER_KEY_FOREIGN_KEYS.name());
 		Boolean[] defaultFilterKeyForeignKeys = new Boolean[1];
-		defaultFilterKeyForeignKeys[0] = this.filterKeyForeignKeys;
+		defaultFilterKeyForeignKeys[0] = this.nullIsSubset;
 		filterKeyForeignKeys.setDefaultValues(defaultFilterKeyForeignKeys);
 		filterKeyForeignKeys.setRequired(true);
 		configs.add(filterKeyForeignKeys);
@@ -176,7 +172,7 @@ public class BINDERFile extends BINDER implements InclusionDependencyAlgorithm, 
 		else if (BINDERFile.Identifier.DETECT_NARY.name().equals(identifier))
 			this.detectNary = values[0];
 		else if (BINDERFile.Identifier.FILTER_KEY_FOREIGN_KEYS.name().equals(identifier))
-			this.filterKeyForeignKeys = values[0];
+			this.nullIsSubset = values[0];
 		else
 			this.handleUnknownConfiguration(identifier, CollectionUtils.concat(values, ","));
 	}
