@@ -30,6 +30,8 @@ import java.util.*;
 
 public class BINDER {
 
+    double threshold = 1.0;
+
     public RelationalInputGenerator[] fileInputGenerator = null;
     public InclusionDependencyResultReceiver resultReceiver = null;
     public String[] tableNames = null;
