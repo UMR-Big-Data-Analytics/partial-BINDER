@@ -40,17 +40,28 @@ public class IntSingleLinkedList {
 		public int next() {
 			this.previous = this.current;
 			this.current = this.next;
-			if (this.current != null)
+			if (this.current != null) {
 				this.next = this.current.next;
-			assert this.current != null;
+			}
 			return this.current.value;
 		}
 		
 		public void remove() {
-			if (this.previous == null)
+			// if there is no previous element, we simply need to point the first pointer of the List to the next entry.
+			if (this.previous == null) {
+				// point first to next element
 				first = this.next;
-			else
+				// set current to null, since it is 'deleted'
+				current = null;
+			}
+			// if we are at the first or later entry we need to put the next pointer of the previous element to the next element.
+			// This means we exclude the current element.
+			else {
+				// set the previous point to the next element
 				this.previous.next = this.next;
+				// set the current element to the previous, such that the previous will still be the previous after the next call of next()
+				this.current = this.previous;
+			}
 		}
 	}
 
