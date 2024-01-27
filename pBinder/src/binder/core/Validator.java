@@ -2,6 +2,7 @@ package binder.core;
 
 import binder.structures.AttributeCombination;
 import binder.structures.IntSingleLinkedList;
+import binder.structures.IntSingleLinkedList.ElementIterator;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
@@ -15,9 +16,11 @@ public class Validator {
 
     private final boolean nullIsSubset;
     private final LongArrayList columnSizes;
+    private final double threshold;
     boolean nullIsNull;
     int numColumns;
     BitSet activeAttributes;
+    long[][] leftoverViolations;
 
     BINDER binder;
 
@@ -28,18 +31,56 @@ public class Validator {
         this.numColumns = binder.numColumns;
         this.columnSizes = binder.columnSizes;
 
+        this.threshold = binder.threshold;
+
         this.binder = binder;
+
+        this.leftoverViolations = new long[numColumns][numColumns];
+
+
+        for (int dependant = 0; dependant < numColumns; dependant++) {
+            long violations = (long) (1.0 - threshold) * columnSizes.getLong(dependant);
+            for (int referenced = 0; referenced < numColumns; referenced++) {
+                if (referenced == dependant || columnSizes.getLong(referenced) == 0L) {
+                    leftoverViolations[dependant][referenced] = -1L;
+                } else {
+                    leftoverViolations[dependant][referenced] = violations;
+                }
+            }
+        }
     }
 
     /**
      * All attributes that share a value form an attribute group. This method prunes the existing attribute refs by
-     * removing all references from each attribute which are not in that group.
+     * removing all references fom each attribute which have no more validations left.
+     *
      * @param attribute2Refs Map from attribute index to referenced attributes
      * @param attributeGroup List of attribute indices that share a value
      */
-    private static void prune(Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs, IntArrayList attributeGroup) {
-        for (int attribute : attributeGroup)
-            attribute2Refs.get(attribute).retainAll(attributeGroup);
+    private void prune(String value, Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs, IntArrayList attributeGroup, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket) {
+        // iterate over every attribute which is in the attribute group
+        for (int dependant : attributeGroup) {
+            // get occurrences of value in current attribute
+            long occurrences = attribute2Bucket.get(dependant).get(value);
+
+            // for each possible pIND
+            ElementIterator referencedAttributes = attribute2Refs.get(dependant).elementIterator();
+            int referenced;
+            while (referencedAttributes.hasNext()) {
+                referenced = referencedAttributes.next();
+                // for every referenced attribute we check if the value is also present
+                if (!attribute2Bucket.get(referenced).containsKey(value)) {
+
+                    // if it is not present the open violations get decreased by the number of occurrences of the value
+                    this.leftoverViolations[dependant][referenced] -= occurrences;
+
+                    // if there should not be any violations left, we remove the attribute from the referenced attributes-
+                    if (this.leftoverViolations[dependant][referenced] < 0L) {
+                        referencedAttributes.remove();
+                    }
+                }
+            }
+        }
     }
 
     static void naryCheckViaTwoStageIndexAndLists(BINDER binder, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations, int naryOffset) throws IOException {
@@ -167,7 +208,7 @@ public class Validator {
                     // Build the inverted index
                     for (String value : bucket.keySet()) {
                         if (!invertedIndex.containsKey(value)) {
-                            invertedIndex.put(value, new IntArrayList(2));
+                            invertedIndex.put(value, new IntArrayList());
                         }
                         invertedIndex.get(value).add(attribute);
                     }
@@ -187,7 +228,7 @@ public class Validator {
 
                         // Prune using the group of attributes containing the current value
                         IntArrayList sameValueGroup = invertedIndex.get(value);
-                        prune(attribute2Refs, sameValueGroup);
+                        prune(value, attribute2Refs, sameValueGroup, attribute2Bucket);
 
                         // Remove the current value from the index as it has now been handled
                         invertedIndex.remove(value);
@@ -195,6 +236,15 @@ public class Validator {
                 }
             }
         }
+        int c = 0;
+        for (int i = 0; i < numColumns; i++) {
+            for (int j = 0; j < numColumns; j++) {
+                if (leftoverViolations[i][j] >= 0L) {
+                    c++;
+                }
+            }
+        }
+        System.out.println("Matrix Count: " + c);
     }
 
     /**
@@ -319,7 +369,7 @@ public class Validator {
             for (int dep : columns) {
                 // if the left-hand side has no non-null values, it is a subset of all columns.
                 // We can directly add such a column to the final set.
-                if (binder.columnSizes.getLong(dep) == 0) {
+                if (columnSizes.getLong(dep) == 0) {
                     dep2refFinal.put(dep, new IntSingleLinkedList(columns, dep));
                 } else {
                     dep2refToCheck.put(dep, new IntSingleLinkedList(nonEmptyColumns, dep));
