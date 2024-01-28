@@ -1,7 +1,6 @@
 package binder.core;
 
 import binder.structures.AttributeCombination;
-import binder.structures.IntSingleLinkedList;
 import binder.structures.pINDSingleLinkedList;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -20,7 +19,6 @@ public class Validator {
     boolean nullIsNull;
     int numColumns;
     BitSet activeAttributes;
-    long[][] leftoverViolations;
 
     BINDER binder;
 
@@ -34,51 +32,6 @@ public class Validator {
         this.threshold = binder.threshold;
 
         this.binder = binder;
-
-        this.leftoverViolations = new long[numColumns][numColumns];
-
-
-        for (int dependant = 0; dependant < numColumns; dependant++) {
-            long violations = (long) (1.0 - threshold) * columnSizes.getLong(dependant);
-            for (int referenced = 0; referenced < numColumns; referenced++) {
-                if (referenced == dependant || columnSizes.getLong(referenced) == 0L) {
-                    leftoverViolations[dependant][referenced] = -1L;
-                } else {
-                    leftoverViolations[dependant][referenced] = violations;
-                }
-            }
-        }
-    }
-
-    /**
-     * All attributes that share a value form an attribute group. This method prunes the existing attribute refs by
-     * removing all references fom each attribute which have no more validations left.
-     *  @param attribute2Refs Map from attribute index to referenced attributes
-     * @param attributeGroup List of attribute indices that share a value
-     */
-    private void prune(String value, Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs, IntArrayList attributeGroup, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket) {
-        // iterate over every attribute which is in the attribute group
-        for (int dependant : attributeGroup) {
-            // get occurrences of value in current attribute
-            long occurrences = attribute2Bucket.get(dependant).get(value);
-
-            // for each possible pIND
-            pINDSingleLinkedList.pINDIterator referencedAttributes = attribute2Refs.get(dependant).elementIterator();
-            while (referencedAttributes.hasNext()) {
-                pINDSingleLinkedList.pINDElement pINDCandidate = referencedAttributes.next();
-                // for every pINDCandidate we check if the value is also present
-                if (!attribute2Bucket.get(pINDCandidate.referenced).containsKey(value)) {
-
-                    // if it is not present the open violations get decreased by the number of occurrences of the value
-                    pINDCandidate.violationsLeft -= occurrences;
-
-                    // if there should not be any violations left, we remove the attribute from the pINDCandidate attributes-
-                    if (pINDCandidate.violationsLeft < 0L) {
-                        referencedAttributes.remove();
-                    }
-                }
-            }
-        }
     }
 
     static void naryCheckViaTwoStageIndexAndLists(BINDER binder, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations, int naryOffset) throws IOException {
@@ -107,8 +60,7 @@ public class Validator {
                 // Identify all currently active attributes
                 activeAttributeCombinations = getActiveAttributeCombinations(activeAttributeCombinations, naryDep2ref, attributeCombinations);
                 binder.naryActiveAttributesPerBucketLevel.add(activeAttributeCombinations.cardinality());
-                if (activeAttributeCombinations.isEmpty())
-                    return;
+                if (activeAttributeCombinations.isEmpty()) return;
 
                 // Load next bucket level as two stage index
                 Int2ObjectOpenHashMap<Map<String, Long>> attributeCombination2Bucket = new Int2ObjectOpenHashMap<>();
@@ -119,8 +71,7 @@ public class Validator {
                     attributeCombination2Bucket.put(attributeCombination, bucket);
                     // Build the inverted index
                     for (String value : bucket.keySet()) {
-                        if (!invertedIndex.containsKey(value))
-                            invertedIndex.put(value, new IntArrayList(2));
+                        if (!invertedIndex.containsKey(value)) invertedIndex.put(value, new IntArrayList(2));
                         invertedIndex.get(value).add(attributeCombination);
                     }
                 }
@@ -170,6 +121,38 @@ public class Validator {
         for (AttributeCombination attributeCombination : attributeCombinationGroup)
             if (naryDep2ref.containsKey(attributeCombination))
                 naryDep2ref.get(attributeCombination).retainAll(attributeCombinationGroup);
+    }
+
+    /**
+     * All attributes that share a value form an attribute group. This method prunes the existing attribute refs by
+     * removing all references fom each attribute which have no more validations left.
+     *
+     * @param attribute2Refs Map from attribute index to referenced attributes
+     * @param attributeGroup List of attribute indices that share a value
+     */
+    private void prune(String value, Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs, IntArrayList attributeGroup, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket) {
+        // iterate over every attribute which is in the attribute group
+        for (int dependant : attributeGroup) {
+            // get occurrences of value in current attribute
+            long occurrences = attribute2Bucket.get(dependant).get(value);
+
+            // for each possible pIND
+            pINDSingleLinkedList.pINDIterator referencedAttributes = attribute2Refs.get(dependant).elementIterator();
+            while (referencedAttributes.hasNext()) {
+                pINDSingleLinkedList.pINDElement pINDCandidate = referencedAttributes.next();
+                // for every pINDCandidate we check if the value is also present
+                if (!attribute2Bucket.get(pINDCandidate.referenced).containsKey(value)) {
+
+                    // if it is not present the open violations get decreased by the number of occurrences of the value
+                    pINDCandidate.violationsLeft -= occurrences;
+
+                    // if there should not be any violations left, we remove the attribute from the pINDCandidate attributes-
+                    if (pINDCandidate.violationsLeft < 0L) {
+                        referencedAttributes.remove();
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -234,19 +217,11 @@ public class Validator {
                 }
             }
         }
-        int c = 0;
-        for (int i = 0; i < numColumns; i++) {
-            for (int j = 0; j < numColumns; j++) {
-                if (leftoverViolations[i][j] >= 0L) {
-                    c++;
-                }
-            }
-        }
-        System.out.println("Matrix Count: " + c);
     }
 
     /**
      * using the currently active attributes, this method returns the next active attribute after the given start index.
+     *
      * @param fromIndex minimum index the next active attribute needs to have.
      * @return the index of the next active attribute.
      */
@@ -256,6 +231,7 @@ public class Validator {
 
     /**
      * Helper method to get the first active Attribute
+     *
      * @return the index of the first active attribute
      */
     private int getNextAttribute() {
