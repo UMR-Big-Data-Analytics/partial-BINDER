@@ -6,6 +6,7 @@ import binder.runner.Config;
 import binder.structures.AttributeCombination;
 import binder.structures.IntSingleLinkedList;
 import binder.structures.IntSingleLinkedList.ElementIterator;
+import binder.structures.pINDSingleLinkedList;
 import binder.utils.*;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.AlgorithmExecutionException;
@@ -74,7 +75,7 @@ public class BINDER {
     List<String> columnNames = null;
     List<String> columnTypes = null;
     int[] column2table = null;
-    Int2ObjectOpenHashMap<IntSingleLinkedList> dep2ref = null;
+    Int2ObjectOpenHashMap<pINDSingleLinkedList> dep2ref = null;
     private Map<AttributeCombination, List<AttributeCombination>> naryDep2ref = null;
 
     @Override
@@ -164,10 +165,10 @@ public class BINDER {
             AttributeCombination depAttributeCombination = new AttributeCombination(this.column2table[dep], dep);
             List<AttributeCombination> refAttributeCombinations = new LinkedList<>();
 
-            ElementIterator refIterator = this.dep2ref.get(dep).elementIterator();
+            pINDSingleLinkedList.pINDIterator refIterator = this.dep2ref.get(dep).elementIterator();
             while (refIterator.hasNext()) {
-                int ref = refIterator.next();
-                refAttributeCombinations.add(new AttributeCombination(this.column2table[ref], ref));
+                pINDSingleLinkedList.pINDElement ref = refIterator.next();
+                refAttributeCombinations.add(new AttributeCombination(this.column2table[ref.referenced], ref.referenced));
             }
             nPlusOneAryDep2ref.put(depAttributeCombination, refAttributeCombinations);
         }
@@ -439,12 +440,12 @@ public class BINDER {
             String depTableName = this.getTableNameFor(dep, this.tableColumnStartIndexes);
             String depColumnName = this.columnNames.get(dep);
 
-            ElementIterator refIterator = this.dep2ref.get(dep).elementIterator();
+            pINDSingleLinkedList.pINDIterator refIterator = this.dep2ref.get(dep).elementIterator();
             while (refIterator.hasNext()) {
-                int ref = refIterator.next();
+                pINDSingleLinkedList.pINDElement ref = refIterator.next();
 
-                String refTableName = this.getTableNameFor(ref, this.tableColumnStartIndexes);
-                String refColumnName = this.columnNames.get(ref);
+                String refTableName = this.getTableNameFor(ref.referenced, this.tableColumnStartIndexes);
+                String refColumnName = this.columnNames.get(ref.referenced);
 
                 this.resultReceiver.receiveResult(new InclusionDependency(new ColumnPermutation(new ColumnIdentifier(depTableName, depColumnName)), new ColumnPermutation(new ColumnIdentifier(refTableName, refColumnName))));
                 this.numUnaryINDs++;

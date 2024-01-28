@@ -2,7 +2,7 @@ package binder.core;
 
 import binder.structures.AttributeCombination;
 import binder.structures.IntSingleLinkedList;
-import binder.structures.IntSingleLinkedList.ElementIterator;
+import binder.structures.pINDSingleLinkedList;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
@@ -53,29 +53,27 @@ public class Validator {
     /**
      * All attributes that share a value form an attribute group. This method prunes the existing attribute refs by
      * removing all references fom each attribute which have no more validations left.
-     *
-     * @param attribute2Refs Map from attribute index to referenced attributes
+     *  @param attribute2Refs Map from attribute index to referenced attributes
      * @param attributeGroup List of attribute indices that share a value
      */
-    private void prune(String value, Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs, IntArrayList attributeGroup, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket) {
+    private void prune(String value, Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs, IntArrayList attributeGroup, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket) {
         // iterate over every attribute which is in the attribute group
         for (int dependant : attributeGroup) {
             // get occurrences of value in current attribute
             long occurrences = attribute2Bucket.get(dependant).get(value);
 
             // for each possible pIND
-            ElementIterator referencedAttributes = attribute2Refs.get(dependant).elementIterator();
-            int referenced;
+            pINDSingleLinkedList.pINDIterator referencedAttributes = attribute2Refs.get(dependant).elementIterator();
             while (referencedAttributes.hasNext()) {
-                referenced = referencedAttributes.next();
-                // for every referenced attribute we check if the value is also present
-                if (!attribute2Bucket.get(referenced).containsKey(value)) {
+                pINDSingleLinkedList.pINDElement pINDCandidate = referencedAttributes.next();
+                // for every pINDCandidate we check if the value is also present
+                if (!attribute2Bucket.get(pINDCandidate.referenced).containsKey(value)) {
 
                     // if it is not present the open violations get decreased by the number of occurrences of the value
-                    this.leftoverViolations[dependant][referenced] -= occurrences;
+                    pINDCandidate.violationsLeft -= occurrences;
 
-                    // if there should not be any violations left, we remove the attribute from the referenced attributes-
-                    if (this.leftoverViolations[dependant][referenced] < 0L) {
+                    // if there should not be any violations left, we remove the attribute from the pINDCandidate attributes-
+                    if (pINDCandidate.violationsLeft < 0L) {
                         referencedAttributes.remove();
                     }
                 }
@@ -178,7 +176,7 @@ public class Validator {
      * @param attribute2Refs A Map with attribute indices as keys and lists of referenced attributes by the key attribute.
      * @throws IOException if a (sub)bucket can not be found on disk.
      */
-    private void levelLoop(Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs) throws IOException {
+    private void levelLoop(Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs) throws IOException {
         for (int bucketNumber : binder.bucketComparisonOrder) {
             // Refine the current bucket level if it does not fit into memory at once
             int[] subBucketNumbers = Bucketizer.refineBucketLevel(binder, activeAttributes, 0, bucketNumber);
@@ -270,7 +268,7 @@ public class Validator {
      *
      * @param attribute2Refs The attribute references list. For each attribute this object stores the indices of all referenced attributes.
      */
-    private void updateActiveAttributesFromLists(Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs) {
+    private void updateActiveAttributesFromLists(Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs) {
         BitSet activeAttributes = new BitSet(numColumns);
 
         // iterate over all previouslyActiveAttributes
@@ -306,8 +304,8 @@ public class Validator {
         }
 
         // Empty attributes can directly be placed in the output as they are contained in everything else; no empty attribute needs to be checked
-        Int2ObjectOpenHashMap<IntSingleLinkedList> dep2refFinal = new Int2ObjectOpenHashMap<>(numColumns);
-        Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs = new Int2ObjectOpenHashMap<>(numColumns);
+        Int2ObjectOpenHashMap<pINDSingleLinkedList> dep2refFinal = new Int2ObjectOpenHashMap<>(numColumns);
+        Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs = new Int2ObjectOpenHashMap<>(numColumns);
         //fetchCandidates(binder, strings, attribute2Refs, dep2refFinal);
         //fetchCandidates(binder, numerics, attribute2Refs, dep2refFinal);
         //fetchCandidates(binder, temporal, attribute2Refs, dep2refFinal);
@@ -339,7 +337,7 @@ public class Validator {
         }
     }
 
-    private void cleanEmptyDependencies(Int2ObjectOpenHashMap<IntSingleLinkedList> attribute2Refs) {
+    private void cleanEmptyDependencies(Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs) {
         IntIterator depIterator = attribute2Refs.keySet().iterator();
         while (depIterator.hasNext()) {
             // if the referenced side is empty the attribute does not form any pINDs
@@ -349,7 +347,7 @@ public class Validator {
         }
     }
 
-    private void fetchCandidates(IntArrayList columns, Int2ObjectOpenHashMap<IntSingleLinkedList> dep2refToCheck, Int2ObjectOpenHashMap<IntSingleLinkedList> dep2refFinal) {
+    private void fetchCandidates(IntArrayList columns, Int2ObjectOpenHashMap<pINDSingleLinkedList> attributes2refCheck, Int2ObjectOpenHashMap<pINDSingleLinkedList> dep2refFinal) {
 
         // assume all columns are empty. An empty column has no values at all
         IntArrayList nonEmptyColumns = new IntArrayList(columns.size());
@@ -370,9 +368,10 @@ public class Validator {
                 // if the left-hand side has no non-null values, it is a subset of all columns.
                 // We can directly add such a column to the final set.
                 if (columnSizes.getLong(dep) == 0) {
-                    dep2refFinal.put(dep, new IntSingleLinkedList(columns, dep));
+                    dep2refFinal.put(dep, new pINDSingleLinkedList(0L, columns, dep));
                 } else {
-                    dep2refToCheck.put(dep, new IntSingleLinkedList(nonEmptyColumns, dep));
+                    long violations = (long) (1.0 - threshold) * columnSizes.getLong(dep);
+                    attributes2refCheck.put(dep, new pINDSingleLinkedList(violations, nonEmptyColumns, dep));
                 }
             }
         }
@@ -380,6 +379,7 @@ public class Validator {
         // if we assume that null is a subset of everything but null:
         // this case is basically a foreign key search, since we do not allow nulls in the right-hand side
         else if (this.nullIsSubset) {
+            // TODO: rework this case
             for (int dep : columns) {
                 // Empty columns are no foreign keys
                 if (binder.columnSizes.getLong(dep) == 0) continue;
@@ -393,7 +393,7 @@ public class Validator {
                         iterator.remove();
                 }
 
-                dep2refToCheck.put(dep, new IntSingleLinkedList(seed, dep));
+                attributes2refCheck.put(dep, new pINDSingleLinkedList(0L, seed, dep));
             }
         }
 
