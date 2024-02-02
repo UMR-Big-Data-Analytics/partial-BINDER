@@ -20,6 +20,14 @@ import java.util.*;
 
 public class Bucketizer {
 
+    /**
+     * Unary Bucketizing
+     * @param binder
+     * @throws InputGenerationException
+     * @throws InputIterationException
+     * @throws IOException
+     * @throws AlgorithmConfigurationException
+     */
     public static void bucketize(BINDER binder) throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
         System.out.print("Bucketizing ... ");
 
@@ -48,8 +56,10 @@ public class Bucketizer {
             InputIterator inputIterator = null;
             try {
                 inputIterator = new FileInputIterator(tableName, binder.config, binder.inputRowLimit);
+                long rowCount = 0;
 
                 while (inputIterator.next()) {
+                    rowCount++;
                     for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
                         String value = inputIterator.getValue(columnNumber);
 
@@ -74,6 +84,7 @@ public class Bucketizer {
                         }
                     }
                 }
+                binder.tableSizes[tableIndex] = rowCount;
             } finally {
                 FileUtils.close(inputIterator);
             }

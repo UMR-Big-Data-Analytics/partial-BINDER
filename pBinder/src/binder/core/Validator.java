@@ -19,6 +19,7 @@ public class Validator {
     boolean nullIsNull;
     int numColumns;
     BitSet activeAttributes;
+    List<AttributeCombination> attributeCombinations;
 
     BINDER binder;
 
@@ -34,25 +35,24 @@ public class Validator {
         this.binder = binder;
     }
 
-    static void naryCheckViaTwoStageIndexAndLists(BINDER binder, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations, int naryOffset) throws IOException {
+    void naryCheckViaTwoStageIndexAndLists(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations, int naryOffset) throws IOException {
         ////////////////////////////////////////////////////
         // Validation (Successively check all candidates) //
         ////////////////////////////////////////////////////
+
+        this.attributeCombinations = attributeCombinations;
 
         // Iterate the buckets for all remaining INDs until the end is reached or no more INDs exist
         BitSet activeAttributeCombinations = new BitSet(attributeCombinations.size());
         activeAttributeCombinations.set(0, attributeCombinations.size());
 
-        levelLoop(binder, naryDep2ref, attributeCombinations, naryOffset, activeAttributeCombinations);
+        levelLoop(naryDep2ref, naryOffset, activeAttributeCombinations);
 
-        // Format the results
-        Iterator<AttributeCombination> depIterator = naryDep2ref.keySet().iterator();
-        while (depIterator.hasNext()) {
-            if (naryDep2ref.get(depIterator.next()).isEmpty()) depIterator.remove();
-        }
+        // Format the results by removing all dependent attribute combinations which have no referenced attribute combinations
+        naryDep2ref.keySet().removeIf(attributeCombination -> naryDep2ref.get(attributeCombination).isEmpty());
     }
 
-    private static void levelLoop(BINDER binder, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations, int naryOffset, BitSet activeAttributeCombinations) throws IOException {
+    private void levelLoop(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, int naryOffset, BitSet activeAttributeCombinations) throws IOException {
         for (int bucketNumber : binder.bucketComparisonOrder) {
             // Refine the current bucket level if it does not fit into memory at once
             int[] subBucketNumbers = Bucketizer.refineBucketLevel(binder, activeAttributeCombinations, naryOffset, bucketNumber);
@@ -76,7 +76,7 @@ public class Validator {
                     }
                 }
 
-                // Check INDs
+                // Check nary pINDs
                 for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination = activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
                     for (String value : attributeCombination2Bucket.get(attributeCombination).keySet()) {
                         // Break if the attribute combination does not reference any other attribute combination
@@ -88,7 +88,7 @@ public class Validator {
 
                         // Prune using the group of attributes containing the current value
                         IntArrayList sameValueGroup = invertedIndex.get(value);
-                        prune(naryDep2ref, sameValueGroup, attributeCombinations);
+                        prune(value, naryDep2ref, sameValueGroup, attributeCombination2Bucket);
 
                         // Remove the current value from the index as it has now been handled
                         invertedIndex.remove(value);
@@ -113,14 +113,39 @@ public class Validator {
         return activeAttributeCombinations;
     }
 
-    private static void prune(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, IntArrayList attributeCombinationGroupIndexes, List<AttributeCombination> attributeCombinations) {
-        List<AttributeCombination> attributeCombinationGroup = new ArrayList<>(attributeCombinationGroupIndexes.size());
-        for (int attributeCombinationIndex : attributeCombinationGroupIndexes)
-            attributeCombinationGroup.add(attributeCombinations.get(attributeCombinationIndex));
+    /**
+     * n-ary puring method to update the naryDep2ref object.
+     * Using the attributeCombinationGroup, the method ensures that only pINDs stay valid, which are still possible.
+     * @param value
+     * @param naryDep2ref The current n-ary pIND candidates
+     * @param attributeCombinationGroup
+     * @param attributeCombination2Bucket
+     */
+    private void prune(String value, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, IntArrayList attributeCombinationGroup, Int2ObjectOpenHashMap<Map<String, Long>> attributeCombination2Bucket) {
+        // iterate over dependent attributes which contain the given value
+        for (int dependant : attributeCombinationGroup) {
+            // get number of occurrences in attribute combination
+            long occurrences = attributeCombination2Bucket.get(dependant).get(value);
 
-        for (AttributeCombination attributeCombination : attributeCombinationGroup)
-            if (naryDep2ref.containsKey(attributeCombination))
-                naryDep2ref.get(attributeCombination).retainAll(attributeCombinationGroup);
+            // if the attribute in the attributeCombinationGroup is not only a referenced attribute, we continue with the next one
+            if (!naryDep2ref.containsKey(this.attributeCombinations.get(dependant))) {
+                continue;
+            }
+
+            Iterator<AttributeCombination> referenceIterator = naryDep2ref.get(this.attributeCombinations.get(dependant)).iterator();
+            while (referenceIterator.hasNext()) {
+                AttributeCombination reference = referenceIterator.next();
+
+                // check if referenced combination contains the value
+                if (!attributeCombination2Bucket.get(this.attributeCombinations.indexOf(reference)).containsKey(value)) {
+                    reference.violationsLeft -= occurrences;
+
+                    if (reference.violationsLeft < 0L) {
+                        referenceIterator.remove();
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -159,7 +184,7 @@ public class Validator {
      * @param attribute2Refs A Map with attribute indices as keys and lists of referenced attributes by the key attribute.
      * @throws IOException if a (sub)bucket can not be found on disk.
      */
-    private void levelLoop(Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs) throws IOException {
+    private void discoverUnary(Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs) throws IOException {
         for (int bucketNumber : binder.bucketComparisonOrder) {
             // Refine the current bucket level if it does not fit into memory at once
             int[] subBucketNumbers = Bucketizer.refineBucketLevel(binder, activeAttributes, 0, bucketNumber);
@@ -293,7 +318,7 @@ public class Validator {
         initializeAttributeBitSet();
 
         // Iterate the buckets for all remaining INDs until the end is reached or no more INDs exist
-        levelLoop(attribute2Refs);
+        discoverUnary(attribute2Refs);
 
         // Remove all dependencies, where no reference exists.
         // These attributes are not a subset of anything else.
@@ -346,7 +371,8 @@ public class Validator {
                 if (columnSizes.getLong(dep) == 0) {
                     dep2refFinal.put(dep, new pINDSingleLinkedList(0L, columns, dep));
                 } else {
-                    long violations = (long) (1.0 - threshold) * columnSizes.getLong(dep);
+                    // TODO: account for NULLS in violations
+                    long violations = (long) ((1.0 - threshold) * ((double) columnSizes.getLong(dep)));
                     attributes2refCheck.put(dep, new pINDSingleLinkedList(violations, nonEmptyColumns, dep));
                 }
             }

@@ -4,8 +4,6 @@ import binder.io.FileInputIterator;
 import binder.io.InputIterator;
 import binder.runner.Config;
 import binder.structures.AttributeCombination;
-import binder.structures.IntSingleLinkedList;
-import binder.structures.IntSingleLinkedList.ElementIterator;
 import binder.structures.pINDSingleLinkedList;
 import binder.utils.*;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
@@ -31,14 +29,15 @@ import java.util.*;
 
 public class BINDER {
 
-    double threshold = 1.0;
+    double threshold = 1;
 
     public RelationalInputGenerator[] fileInputGenerator = null;
     public InclusionDependencyResultReceiver resultReceiver = null;
     public String[] tableNames = null;
+    public long[] tableSizes = null;
     public String databaseName = null;
     public boolean cleanTemp = false;
-    public boolean detectNary = false;
+    public boolean detectNary = true;
     public int inputRowLimit = -1;
     public int numBucketsPerColumn = 10; // Initial number of buckets per column
     public int memoryCheckFrequency = 100; // Number of new, i.e., so far unseen values during bucketing that trigger a memory consumption check
@@ -96,6 +95,7 @@ public class BINDER {
         LoggingUtils.disableLogging();
 
         try {
+            this.tableSizes = new long[this.tableNames.length];
             ////////////////////////////////////////////////////////
             // Phase 0: Initialization (Collect basic statistics) //
             ////////////////////////////////////////////////////////
@@ -122,7 +122,7 @@ public class BINDER {
             // Phase 3: N-ary IND detection (Find INDs of size > 1 //
             /////////////////////////////////////////////////////////
             if (this.detectNary)
-                this.detectNaryViaBucketing();
+                this.detectNaryViaBucketing(validator);
 
             //////////////////////////////////////////////////////
             // Phase 4: Output (Return and/or write the results //
@@ -144,7 +144,7 @@ public class BINDER {
     }
 
 
-    private void detectNaryViaBucketing() throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
+    private void detectNaryViaBucketing(Validator validator) throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
         System.out.print("N-ary IND detection ...");
 
         // Clean temp
@@ -162,13 +162,14 @@ public class BINDER {
         // Initialize nPlusOneAryDep2ref with unary dep2ref
         Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<>();
         for (int dep : this.dep2ref.keySet()) {
-            AttributeCombination depAttributeCombination = new AttributeCombination(this.column2table[dep], dep);
+            AttributeCombination depAttributeCombination = new AttributeCombination(this.column2table[dep], 0L, dep);
             List<AttributeCombination> refAttributeCombinations = new LinkedList<>();
 
             pINDSingleLinkedList.pINDIterator refIterator = this.dep2ref.get(dep).elementIterator();
             while (refIterator.hasNext()) {
                 pINDSingleLinkedList.pINDElement ref = refIterator.next();
-                refAttributeCombinations.add(new AttributeCombination(this.column2table[ref.referenced], ref.referenced));
+                // init with no violations left, will be adjusted at attribute expansion
+                refAttributeCombinations.add(new AttributeCombination(this.column2table[ref.referenced], 0, ref.referenced));
             }
             nPlusOneAryDep2ref.put(depAttributeCombination, refAttributeCombinations);
         }
@@ -219,7 +220,7 @@ public class BINDER {
 
             // Check the n-ary IND candidates
             long naryCompareTimeCurrent = System.currentTimeMillis();
-            Validator.naryCheckViaTwoStageIndexAndLists(this, nPlusOneAryDep2ref, attributeCombinations, naryOffset);
+            validator.naryCheckViaTwoStageIndexAndLists(nPlusOneAryDep2ref, attributeCombinations, naryOffset);
 
             this.naryDep2ref.putAll(nPlusOneAryDep2ref);
 
@@ -284,8 +285,8 @@ public class BINDER {
                             continue;
 
                         // Merge the dep attributes and ref attributes, respectively
-                        AttributeCombination nPlusOneDep = new AttributeCombination(depPivot.getTable(), depPivot.getAttributes(), depExtensionAttr);
-                        AttributeCombination nPlusOneRef = new AttributeCombination(refPivot.getTable(), refPivot.getAttributes(), refExtensionAttr);
+                        AttributeCombination nPlusOneDep = new AttributeCombination(depPivot.getTable(), (long) ((1-threshold) * tableSizes[depPivot.getTable()]), depPivot.getAttributes(), depExtensionAttr);
+                        AttributeCombination nPlusOneRef = new AttributeCombination(refPivot.getTable(), (long) ((1-threshold) * tableSizes[refPivot.getTable()]), refPivot.getAttributes(), refExtensionAttr);
 
                         // Store the new candidate
                         if (!nPlusOneAryDep2ref.containsKey(nPlusOneDep))
@@ -351,6 +352,7 @@ public class BINDER {
                     for (int attributeCombinationNumber : table2attributeCombinationNumbers.get(tableIndex)) {
                         AttributeCombination attributeCombination = attributeCombinations.get(attributeCombinationNumber);
 
+                        // TODO: Why does this skip combinations where any value is NULL?
                         boolean anyNull = false;
                         List<String> attributeCombinationValues = new ArrayList<>(attributeCombination.getAttributes().length);
                         for (int attribute : attributeCombination.getAttributes()) {
@@ -361,6 +363,7 @@ public class BINDER {
                         }
                         if (anyNull) continue;
 
+                        // TODO: This can produce incorrect results in a partial setting
                         String valueSeparator = "#";
                         String value = CollectionUtils.concat(attributeCombinationValues, valueSeparator);
 
