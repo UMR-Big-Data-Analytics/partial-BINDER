@@ -1,6 +1,7 @@
 package binder.utils;
 
 import binder.core.BINDER;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.util.BitSet;
 
@@ -24,6 +25,7 @@ public class PrintUtils {
                 "resultReceiver: " + ((binder.resultReceiver != null) ? binder.resultReceiver.getClass().getName() : "-") + "\r\n\t" +
                 "tempFolderPath: " + binder.tempFolder.getPath() + "\r\n\t" +
                 "tableNames: " + ((binder.tableNames != null) ? CollectionUtils.concat(binder.tableNames, ", ") : "-") + "\r\n\t" +
+                "tableSizes: " + ((binder.tableSizes != null) ? CollectionUtils.concat(LongArrayList.wrap(binder.tableSizes), ", ") : "-") + "\r\n\t" +
                 "numColumns: " + binder.numColumns + " (" + ((binder.spillCounts != null) ? String.valueOf(CollectionUtils.countNotN(binder.spillCounts, 0)) : "-") + " spilled)\r\n\t" +
                 "numBucketsPerColumn: " + binder.numBucketsPerColumn + "\r\n\t" +
                 "bucketComparisonOrder: " + ((binder.bucketComparisonOrder != null) ? CollectionUtils.concat(binder.bucketComparisonOrder, ", ") : "-") + "\r\n\t" +
