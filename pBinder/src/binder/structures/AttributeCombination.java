@@ -7,16 +7,19 @@ import binder.utils.CollectionUtils;
 
 public class AttributeCombination implements Comparable<AttributeCombination> {
 
-	private int table;
+	private final int table;
+	public long violationsLeft;
 	private int[] attributes;
 
-	public AttributeCombination(int table, int... attributes) {
+	public AttributeCombination(int table, long violationsLeft, int... attributes) {
 		this.table = table;
+		this.violationsLeft = violationsLeft;
 		this.setAttributes(attributes);
 	}
 
-	public AttributeCombination(int table, int[] attributes, int attribute) {
+	public AttributeCombination(int table, long violationsLeft, int[] attributes, int attribute) {
 		this.table = table;
+		this.violationsLeft = violationsLeft;
 		this.setAttributes(attributes, attribute);
 	}
 	
@@ -59,8 +62,8 @@ public class AttributeCombination implements Comparable<AttributeCombination> {
 	public int hashCode() {
 		int code = 0;
 		int multiplier = 1;
-		for (int i = 0; i < this.attributes.length; i++) {
-			code = code + this.attributes[i] * multiplier;
+		for (int attribute : this.attributes) {
+			code = code + attribute * multiplier;
 			multiplier = multiplier * 10;
 		}
 		return code + this.table * multiplier;
@@ -68,10 +71,9 @@ public class AttributeCombination implements Comparable<AttributeCombination> {
 
 	@Override
 	public boolean equals(Object obj) {
-		if (!(obj instanceof AttributeCombination))
+		if (!(obj instanceof AttributeCombination other))
 			return false;
-		
-		AttributeCombination other = (AttributeCombination) obj;
+
 		if (this.table != other.getTable())
 			return false;
 		
