@@ -40,8 +40,7 @@ public class PrintUtils {
                 "\r\n" +
                 "nullValueColumns: " + toString(binder.nullValueColumns) +
                 "\r\n" +
-                "columnSizes: " + ((binder.columnSizes != null) ? CollectionUtils.concat(binder.columnSizes, ", ") : "-") + "\r\n" +
-                "numEmptyColumns: " + ((binder.columnSizes != null) ? String.valueOf(CollectionUtils.countN(binder.columnSizes, 0)) : "-") + "\r\n" +
+                "columnSizes: " + ((binder.columnSizes != null) ? binder.columnSizes : "-") + "\r\n" +
                 "\r\n" +
                 "activeAttributesPerBucketLevel: " + ((binder.activeAttributesPerBucketLevel != null) ? CollectionUtils.concat(binder.activeAttributesPerBucketLevel, ", ") : "-") + "\r\n" +
                 "naryActiveAttributesPerBucketLevel: " + ((binder.naryActiveAttributesPerBucketLevel == null) ? "-" : CollectionUtils.concat(binder.naryActiveAttributesPerBucketLevel, ", ")) + "\r\n" +

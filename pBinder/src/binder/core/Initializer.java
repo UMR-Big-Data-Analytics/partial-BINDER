@@ -4,6 +4,8 @@ import binder.io.DefaultFileInputGenerator;
 import binder.io.RelationalFileInput;
 import binder.utils.FileUtils;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,9 +14,11 @@ import java.util.ArrayList;
 import java.util.BitSet;
 
 public class Initializer {
+    static Logger logger = LoggerFactory.getLogger(Initializer.class);
 
     public static void initialize(BINDER binder) throws IOException {
-        System.out.println("Initializing ...");
+
+        logger.info("Starting initialization");
 
         // Ensure the presence of an input generator
         if (binder.fileInputGenerator == null)
@@ -44,6 +48,7 @@ public class Initializer {
                 binder.column2table[j] = table;
             table++;
         }
+        logger.info("Finished initialization");
     }
 
     /**
@@ -53,10 +58,10 @@ public class Initializer {
      */
     private static void initializeMetaData(BINDER binder) throws IOException {
 
+        logger.info("Collecting Metadata");
         // initialize empty variables
         binder.tableColumnStartIndexes = new int[binder.tableNames.length];
         binder.columnNames = new ArrayList<>();
-        binder.columnTypes = new ArrayList<>();
         binder.activeAttributesPerBucketLevel = new IntArrayList(binder.numBucketsPerColumn);
         binder.refinements = new int[binder.numBucketsPerColumn];
 
@@ -85,10 +90,7 @@ public class Initializer {
     static void collectStatisticsFrom(BINDER binder, DefaultFileInputGenerator inputGenerator) throws IOException {
         RelationalFileInput input = inputGenerator.generateNewCopy();
         // Query attribute names and types
-        for (String columnName : input.headerLine) {
-            binder.columnNames.add(columnName);
-            binder.columnTypes.add("String");
-        }
+        binder.columnNames.addAll(input.headerLine);
         input.close();
     }
 

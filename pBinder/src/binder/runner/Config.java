@@ -26,7 +26,7 @@ public class Config {
     public String statisticsFileName = "IND_statistics.txt";
     public boolean writeResults = true;
     public boolean cleanTemp = true;
-    public boolean detectNary = false;
+    public boolean detectNary = true;
 
 
     public Config(Config.Dataset dataset) {

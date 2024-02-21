@@ -6,20 +6,23 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
 import it.unimi.dsi.fastutil.ints.IntListIterator;
-import it.unimi.dsi.fastutil.longs.LongArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.swing.text.ElementIterator;
 import java.io.IOException;
 import java.util.*;
 
 public class Validator {
 
     private final boolean nullIsSubset;
-    private final LongArrayList columnSizes;
+    private final ArrayList<Long> columnSizes;
     private final double threshold;
     boolean nullIsNull;
     int numColumns;
     BitSet activeAttributes;
     List<AttributeCombination> attributeCombinations;
+    Logger logger = LoggerFactory.getLogger(Validator.class);
 
     BINDER binder;
 
@@ -33,6 +36,21 @@ public class Validator {
         this.threshold = binder.threshold;
 
         this.binder = binder;
+    }
+
+    private BitSet getActiveAttributeCombinations(BitSet previouslyActiveAttributeCombinations, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations) {
+        BitSet activeAttributeCombinations = new BitSet(attributeCombinations.size());
+        for (int attribute = previouslyActiveAttributeCombinations.nextSetBit(0); attribute >= 0; attribute = previouslyActiveAttributeCombinations.nextSetBit(attribute + 1)) {
+            AttributeCombination attributeCombination = attributeCombinations.get(attribute);
+            if (naryDep2ref.containsKey(attributeCombination)) {
+                // All attribute combinations referenced by this attribute are active
+                for (AttributeCombination refAttributeCombination : naryDep2ref.get(attributeCombination))
+                    activeAttributeCombinations.set(attributeCombinations.indexOf(refAttributeCombination));
+                // This attribute combination is active if it references any other attribute
+                if (!naryDep2ref.get(attributeCombination).isEmpty()) activeAttributeCombinations.set(attribute);
+            }
+        }
+        return activeAttributeCombinations;
     }
 
     void naryCheckViaTwoStageIndexAndLists(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations, int naryOffset) throws IOException {
@@ -98,26 +116,12 @@ public class Validator {
         }
     }
 
-    private static BitSet getActiveAttributeCombinations(BitSet previouslyActiveAttributeCombinations, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations) {
-        BitSet activeAttributeCombinations = new BitSet(attributeCombinations.size());
-        for (int attribute = previouslyActiveAttributeCombinations.nextSetBit(0); attribute >= 0; attribute = previouslyActiveAttributeCombinations.nextSetBit(attribute + 1)) {
-            AttributeCombination attributeCombination = attributeCombinations.get(attribute);
-            if (naryDep2ref.containsKey(attributeCombination)) {
-                // All attribute combinations referenced by this attribute are active
-                for (AttributeCombination refAttributeCombination : naryDep2ref.get(attributeCombination))
-                    activeAttributeCombinations.set(attributeCombinations.indexOf(refAttributeCombination));
-                // This attribute combination is active if it references any other attribute
-                if (!naryDep2ref.get(attributeCombination).isEmpty()) activeAttributeCombinations.set(attribute);
-            }
-        }
-        return activeAttributeCombinations;
-    }
-
     /**
      * n-ary puring method to update the naryDep2ref object.
      * Using the attributeCombinationGroup, the method ensures that only pINDs stay valid, which are still possible.
+     *
      * @param value
-     * @param naryDep2ref The current n-ary pIND candidates
+     * @param naryDep2ref                 The current n-ary pIND candidates
      * @param attributeCombinationGroup
      * @param attributeCombination2Bucket
      */
@@ -287,18 +291,12 @@ public class Validator {
     }
 
     protected void checkViaTwoStageIndexAndLists() throws IOException {
-        System.out.println("Checking ...");
+        logger.info("Starting validation");
 
         /////////////////////////////////////////////////////////
         // Phase 2.1: Pruning (Dismiss first candidates early) //
         /////////////////////////////////////////////////////////
 
-        // TODO: Set up the initial INDs using type information
-        /*
-        IntArrayList strings = new IntArrayList(binder.numColumns / 2);
-        IntArrayList numerics = new IntArrayList(binder.numColumns / 2);
-        IntArrayList temporal = new IntArrayList();
-        */
         IntArrayList unknown = new IntArrayList(binder.numColumns);
         for (int column = 0; column < numColumns; column++) {
             unknown.add(column);
@@ -307,12 +305,8 @@ public class Validator {
         // Empty attributes can directly be placed in the output as they are contained in everything else; no empty attribute needs to be checked
         Int2ObjectOpenHashMap<pINDSingleLinkedList> dep2refFinal = new Int2ObjectOpenHashMap<>(numColumns);
         Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs = new Int2ObjectOpenHashMap<>(numColumns);
-        //fetchCandidates(binder, strings, attribute2Refs, dep2refFinal);
-        //fetchCandidates(binder, numerics, attribute2Refs, dep2refFinal);
-        //fetchCandidates(binder, temporal, attribute2Refs, dep2refFinal);
-        fetchCandidates(unknown, attribute2Refs, dep2refFinal);
 
-        // TODO: Apply statistical pruning
+        fetchCandidates(unknown, attribute2Refs, dep2refFinal);
 
         // The initially active attributes are all non-empty attributes
         initializeAttributeBitSet();
@@ -327,12 +321,20 @@ public class Validator {
         binder.dep2ref = attribute2Refs;
         // add the dependency reference pairs which where already known
         binder.dep2ref.putAll(dep2refFinal);
+
+        int numPINDs = 0;
+        for (int i : binder.dep2ref.keySet()) {
+            pINDSingleLinkedList.pINDIterator ei = binder.dep2ref.get(i).elementIterator();
+            while (ei.next() != null) numPINDs++;
+        }
+
+        logger.info("Finished validation. Found " + numPINDs + " pINDs");
     }
 
     private void initializeAttributeBitSet() {
         this.activeAttributes = new BitSet(numColumns);
         for (int column = 0; column < numColumns; column++) {
-            if (columnSizes.getLong(column) > 0) {
+            if (columnSizes.get(column) > 0) {
                 this.activeAttributes.set(column);
             }
         }
@@ -355,7 +357,7 @@ public class Validator {
 
         // Check for every column if they have at least one entry
         for (int column : columns) {
-            if (columnSizes.getLong(column) > 0) {
+            if (columnSizes.get(column) > 0) {
                 nonEmptyColumns.add(column);
             }
         }
@@ -368,11 +370,11 @@ public class Validator {
             for (int dep : columns) {
                 // if the left-hand side has no non-null values, it is a subset of all columns.
                 // We can directly add such a column to the final set.
-                if (columnSizes.getLong(dep) == 0) {
+                if (columnSizes.get(dep) == 0) {
                     dep2refFinal.put(dep, new pINDSingleLinkedList(0L, columns, dep));
                 } else {
                     // TODO: account for NULLS in violations
-                    long violations = (long) ((1.0 - threshold) * ((double) columnSizes.getLong(dep)));
+                    long violations = (long) ((1.0 - threshold) * ((double) columnSizes.get(dep)));
                     attributes2refCheck.put(dep, new pINDSingleLinkedList(violations, nonEmptyColumns, dep));
                 }
             }
@@ -384,7 +386,7 @@ public class Validator {
             // TODO: rework this case
             for (int dep : columns) {
                 // Empty columns are no foreign keys
-                if (binder.columnSizes.getLong(dep) == 0) continue;
+                if (binder.columnSizes.get(dep) == 0) continue;
 
                 // Referenced columns must not have null values and must come from different tables
                 IntArrayList seed = nonEmptyColumns.clone();
