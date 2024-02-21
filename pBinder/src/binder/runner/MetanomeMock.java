@@ -4,7 +4,6 @@ import binder.BINDERFile;
 import binder.core.BINDER;
 import binder.io.DefaultFileInputGenerator;
 import binder.utils.FileUtils;
-import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,7 +15,7 @@ public class MetanomeMock {
             BINDER binder;
             DefaultFileInputGenerator[] fileInputGenerators = new DefaultFileInputGenerator[conf.tableNames.length];
             for (int i = 0; i < conf.tableNames.length; i++)
-                fileInputGenerators[i] = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(conf.inputFolderPath + conf.databaseName + File.separator + conf.tableNames[i] + conf.inputFileEnding, true, conf.inputFileSeparator, conf.inputFileQuoteChar, conf.inputFileEscape, conf.inputFileStrictQuotes, conf.inputFileIgnoreLeadingWhiteSpace, conf.inputFileSkipLines, conf.inputFileHasHeader, conf.inputFileSkipDifferingLines, conf.inputFileNullString));
+                fileInputGenerators[i] = new DefaultFileInputGenerator(conf, i);
 
             BINDERFile binderFile = new BINDERFile();
             binderFile.setRelationalInputConfigurationValue2(BINDERFile.Identifier.INPUT_FILES.name(), fileInputGenerators);

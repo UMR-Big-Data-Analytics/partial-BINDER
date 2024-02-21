@@ -1,6 +1,6 @@
 package binder.io;
 
-import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
+import binder.runner.Config;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -9,7 +9,7 @@ import java.io.IOException;
 
 public class DefaultFileInputGenerator {
 
-    protected ConfigurationSettingFileInput setting;
+    protected Config config;
     File inputFile;
 
     /**
@@ -17,14 +17,14 @@ public class DefaultFileInputGenerator {
      *                with
      * @throws IOException thrown if the file cannot be found
      */
-    public DefaultFileInputGenerator(ConfigurationSettingFileInput setting) throws IOException {
-        this.setInputFile(new File(setting.getFileName()));
-        this.setting = setting;
+    public DefaultFileInputGenerator(Config config, int tableId) throws IOException {
+        this.setInputFile(new File(config.inputFolderPath + config.databaseName + File.separator + config.tableNames[tableId] + config.inputFileEnding));
+        this.config = config;
     }
 
 
     public RelationalFileInput generateNewCopy() throws IOException {
-        return new RelationalFileInput(inputFile.getName(), new FileReader(inputFile), setting);
+        return new RelationalFileInput(inputFile.getName(), new FileReader(inputFile), config);
     }
 
     private void setInputFile(File inputFile) throws FileNotFoundException {

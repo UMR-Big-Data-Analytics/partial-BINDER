@@ -5,7 +5,6 @@ import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvValidationException;
-import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
 
 import java.io.FileReader;
 import java.io.IOException;
@@ -57,14 +56,14 @@ public class RelationalFileInput {
         }
     }
 
-    public RelationalFileInput(String relationName, FileReader reader, ConfigurationSettingFileInput setting) throws IOException {
+    public RelationalFileInput(String relationName, FileReader reader, Config config) throws IOException {
         this.relationName = relationName;
 
-        this.hasHeader = setting.hasHeader();
-        this.skipDifferingLines = setting.isSkipDifferingLines();
-        this.nullValue = setting.getNullValue();
+        this.hasHeader = config.inputFileHasHeader;
+        this.skipDifferingLines = config.inputFileSkipDifferingLines;
+        this.nullValue = config.inputFileNullString;
 
-        this.CSVReader = new CSVReaderBuilder(reader).withCSVParser(new CSVParserBuilder().withSeparator(setting.getSeparatorAsChar()).build()).build();
+        this.CSVReader = new CSVReaderBuilder(reader).withCSVParser(new CSVParserBuilder().withSeparator(config.inputFileSeparator).build()).build();
 
         // read the first line
         this.nextLine = readNextLine();

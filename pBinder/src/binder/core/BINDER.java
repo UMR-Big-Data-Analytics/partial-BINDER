@@ -8,7 +8,6 @@ import binder.structures.pINDSingleLinkedList;
 import binder.utils.CollectionUtils;
 import binder.utils.FileUtils;
 import binder.utils.PrintUtils;
-import de.metanome.algorithm_integration.result_receiver.InclusionDependencyResultReceiver;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
