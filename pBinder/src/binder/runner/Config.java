@@ -27,7 +27,7 @@ public class Config {
     public String resultFileName = "IND_results.txt";
     public boolean writeResults = true;
     public boolean cleanTemp = true;
-    public boolean detectNary = true;
+    public boolean detectNary = false;
 
 
     public Config(Config.Algorithm algorithm, Config.Dataset dataset) {

@@ -1,7 +1,7 @@
 package binder.core;
 
+import binder.io.DefaultFileInputGenerator;
 import binder.io.FileInputIterator;
-import binder.io.InputIterator;
 import binder.runner.Config;
 import binder.structures.AttributeCombination;
 import binder.structures.pINDSingleLinkedList;
@@ -14,7 +14,6 @@ import de.metanome.algorithm_integration.ColumnIdentifier;
 import de.metanome.algorithm_integration.ColumnPermutation;
 import de.metanome.algorithm_integration.input.InputGenerationException;
 import de.metanome.algorithm_integration.input.InputIterationException;
-import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import de.metanome.algorithm_integration.result_receiver.ColumnNameMismatchException;
 import de.metanome.algorithm_integration.result_receiver.CouldNotReceiveResultException;
 import de.metanome.algorithm_integration.result_receiver.InclusionDependencyResultReceiver;
@@ -31,7 +30,7 @@ import java.util.*;
 
 public class BINDER {
 
-    public RelationalInputGenerator[] fileInputGenerator = null;
+    public DefaultFileInputGenerator[] fileInputGenerator = null;
     public InclusionDependencyResultReceiver resultReceiver = null;
     public String[] tableNames = null;
     public long[] tableSizes = null;
@@ -340,7 +339,7 @@ public class BINDER {
                 numValuesInAttributeCombination[attributeCombinationNumber] = 0;
 
             // Load data
-            InputIterator inputIterator = null;
+            FileInputIterator inputIterator = null;
             try {
                 inputIterator = new FileInputIterator(this.tableNames[tableIndex], this.config, this.inputRowLimit);
 
@@ -406,7 +405,7 @@ public class BINDER {
                     }
                 }
             } finally {
-                FileUtils.close(inputIterator);
+                inputIterator.close();
             }
 
             // Write buckets to disk

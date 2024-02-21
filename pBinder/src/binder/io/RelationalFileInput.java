@@ -6,8 +6,6 @@ import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvValidationException;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
-import de.metanome.algorithm_integration.input.InputIterationException;
-import de.metanome.algorithm_integration.input.RelationalInput;
 
 import java.io.FileReader;
 import java.io.IOException;
@@ -16,7 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class RelationalFileInput implements RelationalInput {
+public class RelationalFileInput {
 
     protected static final String DEFAULT_HEADER_STRING = "column";
     public List<String> headerLine;
@@ -33,7 +31,7 @@ public class RelationalFileInput implements RelationalInput {
     protected String nullValue;
 
 
-    public RelationalFileInput(String relationName, Reader reader, Config setting) throws InputIterationException {
+    public RelationalFileInput(String relationName, Reader reader, Config setting) throws IOException {
         this.relationName = relationName;
 
         this.hasHeader = setting.inputFileHasHeader;
@@ -59,7 +57,7 @@ public class RelationalFileInput implements RelationalInput {
         }
     }
 
-    public RelationalFileInput(String relationName, FileReader reader, ConfigurationSettingFileInput setting) throws InputIterationException {
+    public RelationalFileInput(String relationName, FileReader reader, ConfigurationSettingFileInput setting) throws IOException {
         this.relationName = relationName;
 
         this.hasHeader = setting.hasHeader();
@@ -85,13 +83,11 @@ public class RelationalFileInput implements RelationalInput {
         }
     }
 
-    @Override
     public boolean hasNext() {
         return !(this.nextLine == null);
     }
 
-    @Override
-    public List<String> next() throws InputIterationException {
+    public List<String> next() throws IOException {
         List<String> currentLine = this.nextLine;
 
         if (currentLine == null) {
@@ -108,13 +104,13 @@ public class RelationalFileInput implements RelationalInput {
         return currentLine;
     }
 
-    protected void failDifferingLine(List<String> currentLine) throws InputIterationException {
+    protected void failDifferingLine(List<String> currentLine) throws IOException {
         if (currentLine.size() != this.numberOfColumns()) {
-            throw new InputIterationException("Csv line length did not match on line " + currentLineNumber);
+            throw new IOException("Csv line length did not match on line " + currentLineNumber);
         }
     }
 
-    protected void readToNextValidLine() throws InputIterationException {
+    protected void readToNextValidLine() throws IOException {
         if (!hasNext()) {
             return;
         }
@@ -136,13 +132,13 @@ public class RelationalFileInput implements RelationalInput {
         return Collections.unmodifiableList(headerList);
     }
 
-    protected List<String> readNextLine() throws InputIterationException {
+    protected List<String> readNextLine() throws IOException {
         String[] lineArray;
         try {
             lineArray = this.CSVReader.readNext();
             currentLineNumber++;
         } catch (IOException | CsvValidationException e) {
-            throw new InputIterationException("Could not read next line in file input", e);
+            throw new IOException("Could not read next line in file input", e);
         }
         if (lineArray == null) {
             return null;
@@ -160,22 +156,18 @@ public class RelationalFileInput implements RelationalInput {
         return Collections.unmodifiableList(list);
     }
 
-    @Override
     public void close() throws IOException {
         CSVReader.close();
     }
 
-    @Override
     public int numberOfColumns() {
         return numberOfColumns;
     }
 
-    @Override
     public String relationName() {
         return relationName;
     }
 
-    @Override
     public List<String> columnNames() {
         return headerLine;
     }

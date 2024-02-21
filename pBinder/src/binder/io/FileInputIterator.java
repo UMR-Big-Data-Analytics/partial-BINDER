@@ -1,28 +1,26 @@
 package binder.io;
 
 import binder.runner.Config;
-import de.metanome.algorithm_integration.input.InputIterationException;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class FileInputIterator implements InputIterator {
+public class FileInputIterator {
 
     private final RelationalFileInput inputGenerator;
     private final int inputRowLimit;
     private List<String> record = null;
     private int rowsRead = 0;
 
-    public FileInputIterator(String relationName, Config config, int inputRowLimit) throws InputIterationException, FileNotFoundException {
+    public FileInputIterator(String relationName, Config config, int inputRowLimit) throws IOException {
         this.inputGenerator = new RelationalFileInput(relationName, new BufferedReader(new FileReader(config.inputFolderPath + config.databaseName + relationName)), config);
         this.inputRowLimit = inputRowLimit;
     }
 
-    @Override
-    public boolean next() throws InputIterationException {
+    public boolean next() throws IOException {
         if (this.inputGenerator.hasNext() && ((this.inputRowLimit <= 0) || (this.rowsRead < this.inputRowLimit))) {
             List<String> input = this.inputGenerator.next();
             this.record = new ArrayList<>(input.size());
@@ -40,18 +38,15 @@ public class FileInputIterator implements InputIterator {
         return false;
     }
 
-    @Override
     public String getValue(int columnIndex) {
         return this.record.get(columnIndex);
     }
 
-    @Override
     public List<String> getValues() {
         return this.record;
     }
 
-    @Override
-    public void close() throws Exception {
+    public void close() throws IOException {
         this.inputGenerator.close();
     }
 }

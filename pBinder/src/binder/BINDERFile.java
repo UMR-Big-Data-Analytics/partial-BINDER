@@ -1,8 +1,11 @@
 package binder;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 
+import binder.io.DefaultFileInputGenerator;
+import binder.io.RelationalFileInput;
 import binder.runner.Config;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.algorithm_types.BooleanParameterAlgorithm;
@@ -97,27 +100,25 @@ public class BINDERFile extends BINDER implements InclusionDependencyAlgorithm, 
 		return configs;
 	}
 
-	@Override
-	public void setRelationalInputConfigurationValue(String identifier, RelationalInputGenerator... value) throws AlgorithmConfigurationException {
+	public void setRelationalInputConfigurationValue2(String identifier, DefaultFileInputGenerator... value) throws AlgorithmConfigurationException, IOException {
 		if (BINDERFile.Identifier.INPUT_FILES.name().equals(identifier)) {
 			this.fileInputGenerator = value;
-			
+
 			this.tableNames = new String[value.length];
-			RelationalInput input = null;
+			RelationalFileInput input = null;
 			for (int i = 0; i < value.length; i++) {
-				try {
 					input = value[i].generateNewCopy();
 					this.tableNames[i] = input.relationName();
-				}
-				catch (AlgorithmConfigurationException | InputGenerationException e) {
-					e.printStackTrace();
-				} finally {
-					FileUtils.close(input);
-				}
+					input.close();
 			}
 		}
 		else
 			this.handleUnknownConfiguration(identifier, CollectionUtils.concat(value, ","));
+	}
+
+	@Override
+	public void setRelationalInputConfigurationValue(String identifier, RelationalInputGenerator... value) throws AlgorithmConfigurationException {
+		return;
 	}
 
 	@Override

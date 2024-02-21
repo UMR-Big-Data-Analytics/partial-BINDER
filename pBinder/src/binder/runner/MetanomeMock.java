@@ -2,13 +2,11 @@ package binder.runner;
 
 import binder.BINDERFile;
 import binder.core.BINDER;
-import binder.utils.FileUtils;
 import binder.io.DefaultFileInputGenerator;
-
+import binder.utils.FileUtils;
 import de.metanome.algorithm_integration.AlgorithmExecutionException;
 import de.metanome.algorithm_integration.ColumnIdentifier;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
-import de.metanome.algorithm_integration.input.FileInputGenerator;
 import de.metanome.algorithm_integration.results.InclusionDependency;
 import de.metanome.algorithm_integration.results.Result;
 import de.metanome.backend.result_receiver.ResultCache;
@@ -22,13 +20,13 @@ public class MetanomeMock {
     public static void executeBINDER(Config conf) {
         try {
             BINDER binder;
-            FileInputGenerator[] fileInputGenerators = new FileInputGenerator[conf.tableNames.length];
+            DefaultFileInputGenerator[] fileInputGenerators = new DefaultFileInputGenerator[conf.tableNames.length];
             ResultCache resultReceiver = new ResultCache("MetanomeMock", null);
             for (int i = 0; i < conf.tableNames.length; i++)
                 fileInputGenerators[i] = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(conf.inputFolderPath + conf.databaseName + File.separator + conf.tableNames[i] + conf.inputFileEnding, true, conf.inputFileSeparator, conf.inputFileQuoteChar, conf.inputFileEscape, conf.inputFileStrictQuotes, conf.inputFileIgnoreLeadingWhiteSpace, conf.inputFileSkipLines, conf.inputFileHasHeader, conf.inputFileSkipDifferingLines, conf.inputFileNullString));
 
             BINDERFile binderFile = new BINDERFile();
-            binderFile.setRelationalInputConfigurationValue(BINDERFile.Identifier.INPUT_FILES.name(), fileInputGenerators);
+            binderFile.setRelationalInputConfigurationValue2(BINDERFile.Identifier.INPUT_FILES.name(), fileInputGenerators);
             binderFile.setIntegerConfigurationValue(BINDERFile.Identifier.INPUT_ROW_LIMIT.name(), conf.inputRowLimit);
             binderFile.setStringConfigurationValue(BINDERFile.Identifier.TEMP_FOLDER_PATH.name(), conf.tempFolderPath);
             binderFile.setBooleanConfigurationValue(BINDERFile.Identifier.CLEAN_TEMP.name(), conf.cleanTemp);

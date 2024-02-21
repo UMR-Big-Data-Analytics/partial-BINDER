@@ -1,13 +1,9 @@
 package binder.core;
 
 import binder.io.FileInputIterator;
-import binder.io.InputIterator;
 import binder.structures.Level;
 import binder.utils.FileUtils;
 import binder.utils.MeasurementUtils;
-import de.metanome.algorithm_integration.AlgorithmConfigurationException;
-import de.metanome.algorithm_integration.input.InputGenerationException;
-import de.metanome.algorithm_integration.input.InputIterationException;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
@@ -22,13 +18,11 @@ public class Bucketizer {
 
     /**
      * Unary Bucketizing
+     *
      * @param binder
-     * @throws InputGenerationException
-     * @throws InputIterationException
      * @throws IOException
-     * @throws AlgorithmConfigurationException
      */
-    public static void bucketize(BINDER binder) throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
+    public static void bucketize(BINDER binder) throws IOException {
         System.out.print("Bucketizing ... ");
 
         int[] emptyBuckets = getEmptyBuckets(binder);
@@ -53,7 +47,7 @@ public class Bucketizer {
             }
 
             // Load data for the current table
-            InputIterator inputIterator = null;
+            FileInputIterator inputIterator = null;
             try {
                 inputIterator = new FileInputIterator(tableName, binder.config, binder.inputRowLimit);
                 long rowCount = 0;
@@ -86,7 +80,7 @@ public class Bucketizer {
                 }
                 binder.tableSizes[tableIndex] = rowCount;
             } finally {
-                FileUtils.close(inputIterator);
+                if (inputIterator != null) inputIterator.close();
             }
 
             // Write buckets to disk

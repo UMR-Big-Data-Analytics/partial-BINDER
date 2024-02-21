@@ -1,13 +1,14 @@
 package binder.core;
 
+import binder.io.DefaultFileInputGenerator;
 import binder.io.RelationalFileInput;
 import binder.utils.FileUtils;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.input.InputGenerationException;
-import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -15,7 +16,7 @@ import java.util.BitSet;
 
 public class Initializer {
 
-    public static void initialize(BINDER binder) throws InputGenerationException, SQLException, AlgorithmConfigurationException {
+    public static void initialize(BINDER binder) throws InputGenerationException, SQLException, IOException {
         System.out.println("Initializing ...");
 
         // Ensure the presence of an input generator
@@ -54,7 +55,7 @@ public class Initializer {
      * @throws InputGenerationException If no file was found
      * @throws AlgorithmConfigurationException If the configuration is incorrect
      */
-    private static void initializeMetaData(BINDER binder) throws InputGenerationException, AlgorithmConfigurationException {
+    private static void initializeMetaData(BINDER binder) throws IOException {
 
         // initialize empty variables
         binder.tableColumnStartIndexes = new int[binder.tableNames.length];
@@ -85,17 +86,17 @@ public class Initializer {
 
     }
 
-    static void collectStatisticsFrom(BINDER binder, RelationalInputGenerator inputGenerator) throws InputGenerationException, AlgorithmConfigurationException {
+    static void collectStatisticsFrom(BINDER binder, DefaultFileInputGenerator inputGenerator) throws IOException {
         RelationalFileInput input = null;
         try {
             // Query attribute names and types
-            input = (RelationalFileInput) inputGenerator.generateNewCopy();
+            input = inputGenerator.generateNewCopy();
             for (String columnName : input.headerLine) {
                 binder.columnNames.add(columnName);
                 binder.columnTypes.add("String");
             }
         } finally {
-            FileUtils.close(input);
+            input.close();
         }
     }
 

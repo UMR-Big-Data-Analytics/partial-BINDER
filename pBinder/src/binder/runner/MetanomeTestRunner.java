@@ -21,7 +21,7 @@ public class MetanomeTestRunner {
     }
 
     public static void main(String[] args) {
-        MetanomeTestRunner.run(new Config(Config.Algorithm.BINDER, Config.Dataset.DATA_GOV), "test");
+        MetanomeTestRunner.run(new Config(Config.Algorithm.BINDER, Config.Dataset.TPCH_1), "test");
     }
 
 }
