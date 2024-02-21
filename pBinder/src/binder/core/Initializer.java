@@ -8,13 +8,12 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.BitSet;
 
 public class Initializer {
 
-    public static void initialize(BINDER binder) throws SQLException, IOException {
+    public static void initialize(BINDER binder) throws IOException {
         System.out.println("Initializing ...");
 
         // Ensure the presence of an input generator

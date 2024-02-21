@@ -22,7 +22,6 @@ public class PrintUtils {
                 "input: " + input + "\r\n\t" +
                 "databaseName: " + binder.databaseName + "\r\n\t" +
                 "inputRowLimit: " + binder.inputRowLimit + "\r\n\t" +
-                "resultReceiver: " + ((binder.resultReceiver != null) ? binder.resultReceiver.getClass().getName() : "-") + "\r\n\t" +
                 "tempFolderPath: " + binder.tempFolder.getPath() + "\r\n\t" +
                 "tableNames: " + ((binder.tableNames != null) ? CollectionUtils.concat(binder.tableNames, ", ") : "-") + "\r\n\t" +
                 "tableSizes: " + ((binder.tableSizes != null) ? CollectionUtils.concat(LongArrayList.wrap(binder.tableSizes), ", ") : "-") + "\r\n\t" +

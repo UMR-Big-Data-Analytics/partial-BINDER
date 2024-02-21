@@ -8,16 +8,7 @@ import binder.structures.pINDSingleLinkedList;
 import binder.utils.CollectionUtils;
 import binder.utils.FileUtils;
 import binder.utils.PrintUtils;
-import de.metanome.algorithm_integration.AlgorithmConfigurationException;
-import de.metanome.algorithm_integration.AlgorithmExecutionException;
-import de.metanome.algorithm_integration.ColumnIdentifier;
-import de.metanome.algorithm_integration.ColumnPermutation;
-import de.metanome.algorithm_integration.input.InputGenerationException;
-import de.metanome.algorithm_integration.input.InputIterationException;
-import de.metanome.algorithm_integration.result_receiver.ColumnNameMismatchException;
-import de.metanome.algorithm_integration.result_receiver.CouldNotReceiveResultException;
 import de.metanome.algorithm_integration.result_receiver.InclusionDependencyResultReceiver;
-import de.metanome.algorithm_integration.results.InclusionDependency;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
@@ -25,13 +16,11 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.sql.SQLException;
 import java.util.*;
 
 public class BINDER {
 
     public DefaultFileInputGenerator[] fileInputGenerator = null;
-    public InclusionDependencyResultReceiver resultReceiver = null;
     public String[] tableNames = null;
     public long[] tableSizes = null;
     public String databaseName = null;
@@ -82,15 +71,7 @@ public class BINDER {
         return PrintUtils.toString(this);
     }
 
-    protected String getAuthorName() {
-        return "Jakob Leander Müller & Thorsten Papenbrock";
-    }
-
-    protected String getDescriptionText() {
-        return "Partial Divide and Conquer-based IND discovery";
-    }
-
-    public void execute() throws AlgorithmExecutionException {
+    public void execute() throws IOException {
         try {
             this.tableSizes = new long[this.tableNames.length];
             ////////////////////////////////////////////////////////
@@ -129,9 +110,9 @@ public class BINDER {
             this.outputTime = System.currentTimeMillis() - this.outputTime;
 
             System.out.println(this);
-        } catch (SQLException | IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
-            throw new AlgorithmExecutionException(e.getMessage());
+            throw new IOException(e.getMessage());
         } finally {
 
             // Clean temp
@@ -141,7 +122,7 @@ public class BINDER {
     }
 
 
-    private void detectNaryViaBucketing(Validator validator) throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
+    private void detectNaryViaBucketing(Validator validator) throws IOException {
         System.out.print("N-ary IND detection ...");
 
         // Clean temp
@@ -303,7 +284,7 @@ public class BINDER {
         return false;
     }
 
-    private void naryBucketize(List<AttributeCombination> attributeCombinations, int naryOffset, int[] narySpillCounts) throws InputGenerationException, InputIterationException, IOException, AlgorithmConfigurationException {
+    private void naryBucketize(List<AttributeCombination> attributeCombinations, int naryOffset, int[] narySpillCounts) throws IOException {
         // Identify the relevant attribute combinations for the different tables
         List<IntArrayList> table2attributeCombinationNumbers = new ArrayList<>(this.tableNames.length);
         for (int tableNumber = 0; tableNumber < this.tableNames.length; tableNumber++)
@@ -432,7 +413,7 @@ public class BINDER {
         Bucketizer.calculateBucketComparisonOrder(emptyBuckets, this.numBucketsPerColumn, this.numColumns, this);
     }
 
-    private void output() throws CouldNotReceiveResultException, ColumnNameMismatchException {
+    private void output() {
         System.out.println("Generating output ...");
 
         // Output unary INDs
@@ -447,7 +428,7 @@ public class BINDER {
                 String refTableName = this.getTableNameFor(ref.referenced, this.tableColumnStartIndexes);
                 String refColumnName = this.columnNames.get(ref.referenced);
 
-                this.resultReceiver.receiveResult(new InclusionDependency(new ColumnPermutation(new ColumnIdentifier(depTableName, depColumnName)), new ColumnPermutation(new ColumnIdentifier(refTableName, refColumnName))));
+                // TODO: figure out how to store pINDs
                 this.numUnaryINDs++;
             }
         }
@@ -456,12 +437,10 @@ public class BINDER {
         if (this.naryDep2ref == null)
             return;
         for (AttributeCombination depAttributeCombination : this.naryDep2ref.keySet()) {
-            ColumnPermutation dep = this.buildColumnPermutationFor(depAttributeCombination);
 
             for (AttributeCombination refAttributeCombination : this.naryDep2ref.get(depAttributeCombination)) {
-                ColumnPermutation ref = this.buildColumnPermutationFor(refAttributeCombination);
 
-                this.resultReceiver.receiveResult(new InclusionDependency(dep, ref));
+                // TODO: figure out how to store pINDs
                 this.numNaryINDs++;
             }
         }
@@ -472,15 +451,5 @@ public class BINDER {
             if (tableColumnStartIndexes[i] > column)
                 return this.tableNames[i - 1];
         return this.tableNames[this.tableNames.length - 1];
-    }
-
-    private ColumnPermutation buildColumnPermutationFor(AttributeCombination attributeCombination) {
-        String tableName = this.tableNames[attributeCombination.getTable()];
-
-        List<ColumnIdentifier> columnIdentifiers = new ArrayList<>(attributeCombination.getAttributes().length);
-        for (int attributeIndex : attributeCombination.getAttributes())
-            columnIdentifiers.add(new ColumnIdentifier(tableName, this.columnNames.get(attributeIndex)));
-
-        return new ColumnPermutation(columnIdentifiers.toArray(new ColumnIdentifier[0]));
     }
 }
