@@ -3,8 +3,6 @@ package binder.core;
 import binder.io.DefaultFileInputGenerator;
 import binder.io.RelationalFileInput;
 import binder.utils.FileUtils;
-import de.metanome.algorithm_integration.AlgorithmConfigurationException;
-import de.metanome.algorithm_integration.input.InputGenerationException;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 
 import java.io.File;
@@ -16,12 +14,12 @@ import java.util.BitSet;
 
 public class Initializer {
 
-    public static void initialize(BINDER binder) throws InputGenerationException, SQLException, IOException {
+    public static void initialize(BINDER binder) throws SQLException, IOException {
         System.out.println("Initializing ...");
 
         // Ensure the presence of an input generator
         if (binder.fileInputGenerator == null)
-            throw new InputGenerationException("No input generator specified!");
+            return;
 
         // Initialize temp folder
         binder.tempFolder = new File(binder.tempFolderPath + File.separator + "temp");
@@ -51,9 +49,8 @@ public class Initializer {
 
     /**
      * This method prepare a bunch of Metadata by reading each tables header.
+     *
      * @param binder The Algorithm class
-     * @throws InputGenerationException If no file was found
-     * @throws AlgorithmConfigurationException If the configuration is incorrect
      */
     private static void initializeMetaData(BINDER binder) throws IOException {
 
@@ -87,17 +84,13 @@ public class Initializer {
     }
 
     static void collectStatisticsFrom(BINDER binder, DefaultFileInputGenerator inputGenerator) throws IOException {
-        RelationalFileInput input = null;
-        try {
-            // Query attribute names and types
-            input = inputGenerator.generateNewCopy();
-            for (String columnName : input.headerLine) {
-                binder.columnNames.add(columnName);
-                binder.columnTypes.add("String");
-            }
-        } finally {
-            input.close();
+        RelationalFileInput input = inputGenerator.generateNewCopy();
+        // Query attribute names and types
+        for (String columnName : input.headerLine) {
+            binder.columnNames.add(columnName);
+            binder.columnTypes.add("String");
         }
+        input.close();
     }
 
 }
