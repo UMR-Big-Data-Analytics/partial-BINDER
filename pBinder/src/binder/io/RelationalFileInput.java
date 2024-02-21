@@ -33,11 +33,19 @@ public class RelationalFileInput {
     public RelationalFileInput(String relationName, Reader reader, Config setting) throws IOException {
         this.relationName = relationName;
 
-        this.hasHeader = setting.inputFileHasHeader;
-        this.skipDifferingLines = setting.inputFileSkipDifferingLines;
-        this.nullValue = setting.inputFileNullString;
+        this.hasHeader = setting.hasHeader;
+        this.skipDifferingLines = setting.skipDifferingLines;
+        this.nullValue = setting.nullString;
 
-        this.CSVReader = new CSVReaderBuilder(reader).withCSVParser(new CSVParserBuilder().withSeparator(setting.inputFileSeparator).build()).build();
+        this.CSVReader = new CSVReaderBuilder(reader).withCSVParser(
+                new CSVParserBuilder()
+                        .withSeparator(setting.separator)
+                        .withIgnoreLeadingWhiteSpace(setting.ignoreLeadingWhiteSpaces)
+                        .withQuoteChar(setting.quoteChar)
+                        .withStrictQuotes(setting.strictQuotes)
+                        .withEscapeChar(setting.escapeChar)
+                        .build()
+        ).build();
 
         // read the first line
         this.nextLine = readNextLine();
@@ -59,11 +67,11 @@ public class RelationalFileInput {
     public RelationalFileInput(String relationName, FileReader reader, Config config) throws IOException {
         this.relationName = relationName;
 
-        this.hasHeader = config.inputFileHasHeader;
-        this.skipDifferingLines = config.inputFileSkipDifferingLines;
-        this.nullValue = config.inputFileNullString;
+        this.hasHeader = config.hasHeader;
+        this.skipDifferingLines = config.skipDifferingLines;
+        this.nullValue = config.nullString;
 
-        this.CSVReader = new CSVReaderBuilder(reader).withCSVParser(new CSVParserBuilder().withSeparator(config.inputFileSeparator).build()).build();
+        this.CSVReader = new CSVReaderBuilder(reader).withCSVParser(new CSVParserBuilder().withSeparator(config.separator).build()).build();
 
         // read the first line
         this.nextLine = readNextLine();

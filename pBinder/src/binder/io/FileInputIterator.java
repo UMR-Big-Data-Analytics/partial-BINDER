@@ -3,6 +3,7 @@ package binder.io;
 import binder.runner.Config;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -16,7 +17,7 @@ public class FileInputIterator {
     private int rowsRead = 0;
 
     public FileInputIterator(String relationName, Config config, int inputRowLimit) throws IOException {
-        this.inputGenerator = new RelationalFileInput(relationName, new BufferedReader(new FileReader(config.inputFolderPath + config.databaseName + relationName)), config);
+        this.inputGenerator = new RelationalFileInput(relationName, new BufferedReader(new FileReader(config.datasetFolder + config.datasetName + File.separator + relationName)), config);
         this.inputRowLimit = inputRowLimit;
     }
 

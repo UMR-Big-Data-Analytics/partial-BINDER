@@ -18,7 +18,7 @@ public class DefaultFileInputGenerator {
      * @throws IOException thrown if the file cannot be found
      */
     public DefaultFileInputGenerator(Config config, int tableId) throws IOException {
-        this.setInputFile(new File(config.inputFolderPath + config.databaseName + File.separator + config.tableNames[tableId] + config.inputFileEnding));
+        this.setInputFile(new File(config.datasetFolder + config.datasetName + File.separator + config.relationNames[tableId] + config.fileEnding));
         this.config = config;
     }
 
