@@ -1,7 +1,5 @@
 package binder.structures;
 
-import binder.utils.CollectionUtils;
-
 import java.util.Arrays;
 
 public class AttributeCombination implements Comparable<AttributeCombination> {
@@ -71,7 +69,7 @@ public class AttributeCombination implements Comparable<AttributeCombination> {
 
     @Override
     public String toString() {
-        return "[" + CollectionUtils.concat(this.attributes, ",") + "]";
+        return Arrays.toString(attributes);
     }
 
     @Override
