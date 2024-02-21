@@ -1,112 +1,91 @@
 package binder.structures;
 
-import java.util.Arrays;
-import java.util.List;
-
 import binder.utils.CollectionUtils;
+
+import java.util.Arrays;
 
 public class AttributeCombination implements Comparable<AttributeCombination> {
 
-	private final int table;
-	public long violationsLeft;
-	private int[] attributes;
+    private final int table;
+    public long violationsLeft;
+    private int[] attributes;
 
-	public AttributeCombination(int table, long violationsLeft, int... attributes) {
-		this.table = table;
-		this.violationsLeft = violationsLeft;
-		this.setAttributes(attributes);
-	}
+    public AttributeCombination(int table, long violationsLeft, int... attributes) {
+        this.table = table;
+        this.violationsLeft = violationsLeft;
+        this.setAttributes(attributes);
+    }
 
-	public AttributeCombination(int table, long violationsLeft, int[] attributes, int attribute) {
-		this.table = table;
-		this.violationsLeft = violationsLeft;
-		this.setAttributes(attributes, attribute);
-	}
-	
-	public int size() {
-		return this.attributes.length;
-	}
-	
-	public int getTable() {
-		return this.table;
-	}
-	
-	public int[] getAttributes() {
-		return this.attributes;
-	}
-	
-	public void setAttributes(int[] attributes) {
-		this.attributes = attributes;
-	}
-	
-	public void setAttributes(int[] attributes, int attribute) {
-		this.attributes = Arrays.copyOf(attributes, attributes.length + 1);
-		this.attributes[attributes.length] = attribute;
-	}
-	
-	public String[] getAttributes(List<String> names) {
-		String[] attributesByName = new String[this.attributes.length];
-		for (int i = 0; i < this.attributes.length; i++)
-			attributesByName[i] = names.get(this.attributes[i]);
-		return attributesByName;
-	}
-	
-	public boolean contains(int attribute) {
-		for (int a : this.attributes)
-			if (a == attribute)
-				return true;
-		return false;
-	}
-	
-	@Override
-	public int hashCode() {
-		int code = 0;
-		int multiplier = 1;
-		for (int attribute : this.attributes) {
-			code = code + attribute * multiplier;
-			multiplier = multiplier * 10;
-		}
-		return code + this.table * multiplier;
-	}
+    public AttributeCombination(int table, long violationsLeft, int[] attributes, int attribute) {
+        this.table = table;
+        this.violationsLeft = violationsLeft;
+        this.setAttributes(attributes, attribute);
+    }
 
-	@Override
-	public boolean equals(Object obj) {
-		if (!(obj instanceof AttributeCombination other))
-			return false;
+    public int size() {
+        return this.attributes.length;
+    }
 
-		if (this.table != other.getTable())
-			return false;
-		
-		int[] otherColumns = other.getAttributes();
-		if (this.attributes.length != otherColumns.length)
-			return false;
-		
-		for (int i = 0; i < this.attributes.length; i++)
-			if (this.attributes[i] != otherColumns[i])
-				return false;
-		
-		return true;
-	}
+    public int getTable() {
+        return this.table;
+    }
 
-	@Override
-	public String toString() {
-		return "[" + CollectionUtils.concat(this.attributes, ",") + "]";
-	}
+    public int[] getAttributes() {
+        return this.attributes;
+    }
 
-	@Override
-	public int compareTo(AttributeCombination other) {
-		if (this.table == other.getTable()) {
-			if (this.attributes.length == other.getAttributes().length) {
-				for (int i = 0; i < this.attributes.length; i++) {
-					if (this.attributes[i] < other.getAttributes()[i])
-						return -1;
-					if (this.attributes[i] > other.getAttributes()[i])
-						return 1;
-				}
-				return 0;
-			}
-			return this.attributes.length - other.getAttributes().length;
-		}
-		return this.table - other.getTable();
-	}
+    public void setAttributes(int[] attributes) {
+        this.attributes = attributes;
+    }
+
+    public void setAttributes(int[] attributes, int attribute) {
+        this.attributes = Arrays.copyOf(attributes, attributes.length + 1);
+        this.attributes[attributes.length] = attribute;
+    }
+
+    @Override
+    public int hashCode() {
+        int code = 0;
+        int multiplier = 1;
+        for (int attribute : this.attributes) {
+            code = code + attribute * multiplier;
+            multiplier = multiplier * 10;
+        }
+        return code + this.table * multiplier;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof AttributeCombination other)) return false;
+
+        if (this.table != other.getTable()) return false;
+
+        int[] otherColumns = other.getAttributes();
+        if (this.attributes.length != otherColumns.length) return false;
+
+        for (int i = 0; i < this.attributes.length; i++)
+            if (this.attributes[i] != otherColumns[i]) return false;
+
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        return "[" + CollectionUtils.concat(this.attributes, ",") + "]";
+    }
+
+    @Override
+    public int compareTo(AttributeCombination other) {
+        if (this.table == other.getTable()) {
+            if (this.attributes.length == other.getAttributes().length) {
+                for (int i = 0; i < this.attributes.length; i++) {
+                    if (this.attributes[i] < other.getAttributes()[i]) return -1;
+                    if (this.attributes[i] > other.getAttributes()[i]) return 1;
+                }
+                return 0;
+            }
+            return this.attributes.length - other.getAttributes().length;
+        }
+        return this.table - other.getTable();
+    }
 }
