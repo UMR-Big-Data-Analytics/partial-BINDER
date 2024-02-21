@@ -186,7 +186,7 @@ public class Bucketizer {
 
         binder.bucketComparisonOrder = new int[numBucketsPerColumn];
         for (int rank = 0; rank < numBucketsPerColumn; rank++)
-            binder.bucketComparisonOrder[rank] = levels.get(rank).getNumber();
+            binder.bucketComparisonOrder[rank] = levels.get(rank).number();
     }
 
     static void writeBucket(File tempFolder, int attributeNumber, int bucketNumber, int subBucketNumber, Map<String, Long> values, LongArrayList columnSizes) throws IOException {
