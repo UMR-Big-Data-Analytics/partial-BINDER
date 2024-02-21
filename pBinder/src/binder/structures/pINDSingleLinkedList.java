@@ -1,7 +1,5 @@
 package binder.structures;
 
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-
 import java.util.BitSet;
 import java.util.Collection;
 
@@ -17,14 +15,6 @@ public class pINDSingleLinkedList {
         this.seed = seed;
         this.except = except;
         this.initialViolations = initialViolations;
-    }
-
-    public pINDElement getFirst() {
-        return this.first;
-    }
-
-    public pINDElement getLast() {
-        return this.last;
     }
 
     private void initialize() {
@@ -45,48 +35,10 @@ public class pINDSingleLinkedList {
         this.last = element;
     }
 
-    public void add(int value, long violationsLeft) {
-        this.initialize();
-        this.selfAdd(value, violationsLeft);
-    }
-
-    public void addAll(pINDSingleLinkedList values) {
-        this.initialize();
-        pINDIterator iterator = values.elementIterator();
-        while (iterator.hasNext()) {
-            pINDElement next = iterator.next();
-            this.selfAdd(next.referenced, next.violationsLeft);
-        }
-
-    }
-
-    /**
-     * This method should only be used to append already validated pINDs. The number of violations left is set to 0.
-     * @param values The attribute indices which should be added.
-     */
-    public void addAll(IntSingleLinkedList values) {
-        this.initialize();
-        IntSingleLinkedList.ElementIterator iterator = values.elementIterator();
-        while (iterator.hasNext())
-            this.selfAdd(iterator.next(), 0L);
-    }
-
     public boolean isEmpty() {
         this.initialize();
 
         return this.first == null;
-    }
-
-    public boolean contains(int value) {
-        this.initialize();
-
-        pINDElement element = this.first;
-        while (element != null) {
-            if (element.referenced == value)
-                return true;
-            element = element.next;
-        }
-        return false;
     }
 
     /**
@@ -103,38 +55,6 @@ public class pINDSingleLinkedList {
             bitSet.set(pINDElement.referenced);
             pINDElement = pINDElement.next;
         }
-    }
-
-    public void retainAll(IntArrayList otherList) {
-        this.initialize();
-
-        pINDElement previous = null;
-        pINDElement current = this.first;
-        while (current != null) {
-            if (otherList.contains(current.referenced)) {
-                previous = current;
-                current = current.next;
-            } else {
-                if (previous == null) {
-                    this.first = current.next;
-                    current.next = null;
-                    if (this.first == null)
-                        current = null;
-                    else
-                        current = this.first;
-
-                } else {
-                    previous.next = current.next;
-                    current.next = null;
-                    current = previous.next;
-                }
-            }
-        }
-    }
-
-    public void clear() {
-        this.first = null;
-        this.last = null;
     }
 
     public pINDIterator elementIterator() {
