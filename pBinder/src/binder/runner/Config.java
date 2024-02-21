@@ -10,7 +10,7 @@ public class Config {
     public String databaseName;
     public String[] tableNames;
     public int inputRowLimit; // although specifying the row limit in % is more accurate as it uniformly shrinks a dataset, it is still given in #rows, because % would introduce an unfair overhead to SPIDER (you need to count the row numbers of all tables first to perform % on them)
-    public String inputFolderPath = "M:\\MA\\data" + File.separator;
+    public String inputFolderPath = "D:\\MA\\data" + File.separator;
     public String inputFileEnding = ".csv";
     public char inputFileSeparator = ',';
     public char inputFileQuoteChar = '\"';
@@ -27,7 +27,7 @@ public class Config {
     public String resultFileName = "IND_results.txt";
     public boolean writeResults = true;
     public boolean cleanTemp = true;
-    public boolean detectNary = false;
+    public boolean detectNary = true;
 
 
     public Config(Config.Algorithm algorithm, Config.Dataset dataset) {
@@ -37,18 +37,20 @@ public class Config {
 
     private void setDataset(Config.Dataset dataset) {
         switch (dataset) {
-            case KAGGLE:
+            case KAGGLE -> {
                 this.databaseName = "Kaggle\\";
                 this.tableNames = new String[]{"enrollement_schoolmanagement_2", "data", "amazon_laptop_prices_v01", "IQ_level", "Employee", "employee_data (1)"};
                 this.inputFileSeparator = ',';
                 this.inputFileHasHeader = true;
-            case TPCH_1:
+            }
+            case TPCH_1 -> {
                 this.databaseName = "TPCH_1\\";
-                this.tableNames = new String[]{"customer", "lineitem", "nation", "orders", "part", "region", "supplier"};
+                this.tableNames = new String[]{"customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier"};
                 this.inputFileSeparator = '|';
                 this.inputFileHasHeader = false;
                 this.inputFileEnding = ".tbl";
-            case DATA_GOV:
+            }
+            case DATA_GOV -> {
                 this.databaseName = "data.gov\\";
                 this.tableNames = new String[]{"Air_Quality", "Air_Traffic_Passenger_Statistics",
                         "Crash_Reporting_-_Drivers_Data", "Crime_Data_from_2020_to_Present", "Demographic_Statistics_By_Zip_Code",
@@ -61,8 +63,24 @@ public class Config {
                 this.inputFileSeparator = ',';
                 this.inputFileHasHeader = true;
                 this.inputFileEnding = ".csv";
-            default:
-                break;
+            }
+            case UEFA -> {
+                this.databaseName = "uefa\\";
+                this.tableNames = new String[]{"attacking", "attempts", "defending", "disciplinary", "distributon",
+                        "goalkeeping", "goals", "key_stats"
+                };
+                this.inputFileSeparator = ',';
+                this.inputFileHasHeader = true;
+                this.inputFileEnding = ".csv";
+            }
+            case TEST -> {
+                this.databaseName = "wrong_binder_nary\\";
+                this.tableNames = new String[]{"test"};
+                this.inputFileEnding = ".csv";
+                this.inputFileHasHeader = true;
+            }
+            default -> {
+            }
         }
     }
 
@@ -76,6 +94,6 @@ public class Config {
     }
 
     public enum Dataset {
-        TPCH_1, KAGGLE, DATA_GOV
+        TPCH_1, KAGGLE, DATA_GOV, UEFA, TEST
     }
 }
