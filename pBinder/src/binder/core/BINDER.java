@@ -5,7 +5,9 @@ import binder.io.InputIterator;
 import binder.runner.Config;
 import binder.structures.AttributeCombination;
 import binder.structures.pINDSingleLinkedList;
-import binder.utils.*;
+import binder.utils.CollectionUtils;
+import binder.utils.FileUtils;
+import binder.utils.PrintUtils;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.AlgorithmExecutionException;
 import de.metanome.algorithm_integration.ColumnIdentifier;
@@ -28,8 +30,6 @@ import java.sql.SQLException;
 import java.util.*;
 
 public class BINDER {
-
-    double threshold = 1;
 
     public RelationalInputGenerator[] fileInputGenerator = null;
     public InclusionDependencyResultReceiver resultReceiver = null;
@@ -69,6 +69,7 @@ public class BINDER {
     protected boolean nullIsSubset = false;
     protected int maxNaryLevel = -1;
     protected Config config;
+    double threshold = 1;
     Int2ObjectOpenHashMap<List<Map<String, Long>>> attribute2subBucketsCache = null;
     int[] tableColumnStartIndexes = null;
     List<String> columnNames = null;
@@ -91,9 +92,6 @@ public class BINDER {
     }
 
     public void execute() throws AlgorithmExecutionException {
-        // Disable Logging (FastSet sometimes complains about skewed key distributions with lots of warnings)
-        LoggingUtils.disableLogging();
-
         try {
             this.tableSizes = new long[this.tableNames.length];
             ////////////////////////////////////////////////////////
@@ -285,8 +283,8 @@ public class BINDER {
                             continue;
 
                         // Merge the dep attributes and ref attributes, respectively
-                        AttributeCombination nPlusOneDep = new AttributeCombination(depPivot.getTable(), (long) ((1-threshold) * tableSizes[depPivot.getTable()]), depPivot.getAttributes(), depExtensionAttr);
-                        AttributeCombination nPlusOneRef = new AttributeCombination(refPivot.getTable(), (long) ((1-threshold) * tableSizes[refPivot.getTable()]), refPivot.getAttributes(), refExtensionAttr);
+                        AttributeCombination nPlusOneDep = new AttributeCombination(depPivot.getTable(), (long) ((1 - threshold) * tableSizes[depPivot.getTable()]), depPivot.getAttributes(), depExtensionAttr);
+                        AttributeCombination nPlusOneRef = new AttributeCombination(refPivot.getTable(), (long) ((1 - threshold) * tableSizes[refPivot.getTable()]), refPivot.getAttributes(), refExtensionAttr);
 
                         // Store the new candidate
                         if (!nPlusOneAryDep2ref.containsKey(nPlusOneDep))
