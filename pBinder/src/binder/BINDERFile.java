@@ -30,29 +30,6 @@ public class BINDERFile extends BINDER {
             this.handleUnknownConfiguration(identifier, CollectionUtils.concat(value, ","));
     }
 
-    public void setIntegerConfigurationValue(String identifier, Integer... values) throws IllegalArgumentException {
-        if (BINDERFile.Identifier.INPUT_ROW_LIMIT.name().equals(identifier)) {
-            if (values.length > 0)
-                this.inputRowLimit = values[0];
-        } else if (BINDERFile.Identifier.MAX_NARY_LEVEL.name().equals(identifier)) {
-            if (values.length > 0)
-                this.maxNaryLevel = values[0];
-        } else if (BINDERFile.Identifier.NUM_BUCKETS_PER_COLUMN.name().equals(identifier)) {
-            if (values[0] <= 0)
-                throw new IllegalArgumentException(BINDERFile.Identifier.NUM_BUCKETS_PER_COLUMN.name() + " must be greater than 0!");
-            this.numBucketsPerColumn = values[0];
-        } else if (BINDERFile.Identifier.MEMORY_CHECK_FREQUENCY.name().equals(identifier)) {
-            if (values[0] <= 0)
-                throw new IllegalArgumentException(BINDERFile.Identifier.MEMORY_CHECK_FREQUENCY.name() + " must be greater than 0!");
-            this.memoryCheckFrequency = values[0];
-        } else if (BINDERFile.Identifier.MAX_MEMORY_USAGE_PERCENTAGE.name().equals(identifier)) {
-            if (values[0] <= 0)
-                throw new IllegalArgumentException(BINDERFile.Identifier.MAX_MEMORY_USAGE_PERCENTAGE.name() + " must be greater than 0!");
-            this.maxMemoryUsagePercentage = values[0];
-        } else
-            this.handleUnknownConfiguration(identifier, CollectionUtils.concat(values, ","));
-    }
-
     public void setStringConfigurationValue(String identifier, String... values) throws IllegalArgumentException {
         if (BINDERFile.Identifier.TEMP_FOLDER_PATH.name().equals(identifier)) {
             if ("".equals(values[0]) || " ".equals(values[0]) || "/".equals(values[0]) || "\\".equals(values[0]) || File.separator.equals(values[0]) || FileUtils.isRoot(new File(values[0])))

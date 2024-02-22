@@ -15,10 +15,10 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 public class BINDER {
 
+    private final Logger logger = LoggerFactory.getLogger(BINDER.class);
     public DefaultFileInputGenerator[] fileInputGenerator = null;
     public String[] tableNames = null;
     public long[] tableSizes = null;
@@ -51,19 +51,16 @@ public class BINDER {
     public List<int[]> naryRefinements = null;
     public int[] bucketComparisonOrder = null;
     public ArrayList<Long> columnSizes = null;
-    public boolean nullIsNull = true;
     protected String tempFolderPath = "BINDER_temp"; // TODO: Use Metanome temp file functionality here (interface TempFileAlgorithm)
     protected boolean nullIsSubset = false;
     protected int maxNaryLevel = -1;
     protected Config config;
-    double threshold = 1;
     Int2ObjectOpenHashMap<List<Map<String, Long>>> attribute2subBucketsCache = null;
     int[] tableColumnStartIndexes = null;
     List<String> columnNames = null;
     int[] column2table = null;
     Int2ObjectOpenHashMap<pINDSingleLinkedList> dep2ref = null;
     private Map<AttributeCombination, List<AttributeCombination>> naryDep2ref = null;
-    private final Logger logger = LoggerFactory.getLogger(BINDER.class);
 
     @Override
     public String toString() {
@@ -84,7 +81,7 @@ public class BINDER {
             // Phase 1: Bucketing (Create and fill the buckets) //
             //////////////////////////////////////////////////////
             this.unaryLoadTime = System.currentTimeMillis();
-            Bucketizer.bucketize(this);
+            Bucketizer.unaryBucketize(this);
             this.unaryLoadTime = System.currentTimeMillis() - this.unaryLoadTime;
 
             //////////////////////////////////////////////////////
@@ -150,7 +147,7 @@ public class BINDER {
 
         int naryLevel = 1;
 
-        // Generate, bucketize and test the n-ary INDs level-wise
+        // Generate, unaryBucketize and test the n-ary INDs level-wise
         this.naryDep2ref = new HashMap<>();
         this.naryGenerationTime = new LongArrayList();
         this.naryLoadTime = new LongArrayList();
@@ -189,7 +186,7 @@ public class BINDER {
 
             this.naryGenerationTime.add(System.currentTimeMillis() - naryGenerationTimeCurrent);
 
-            // Read the input dataset again and bucketize all attribute combinations that are refs or deps
+            // Read the input dataset again and unaryBucketize all attribute combinations that are refs or deps
             long naryLoadTimeCurrent = System.currentTimeMillis();
             Bucketizer.naryBucketize(this, attributeCombinations, naryOffset, currentNarySpillCounts);
             this.naryLoadTime.add(System.currentTimeMillis() - naryLoadTimeCurrent);
@@ -206,10 +203,16 @@ public class BINDER {
             this.naryCompareTime.add(System.currentTimeMillis() - naryCompareTimeCurrent);
 
             long endTime = System.currentTimeMillis() - naryGenerationTimeCurrent;
-            logger.info("Finished Level " + naryLevel + ". Took " + String.format("%02dm %02ds %04dms", endTime/60_000, (endTime/1000)%60, endTime % 1000));
+            logger.info("Finished Level " + naryLevel + ". Took " + String.format("%02dm %02ds %04dms", endTime / 60_000, (endTime / 1000) % 60, endTime % 1000));
         }
     }
 
+    /**
+     * generates pIND candidates for the next layer
+     *
+     * @param naryDep2ref the valid pINDs of the current layer
+     * @return A dependant to referenced map with (current+1) sized attributes
+     */
     private Map<AttributeCombination, List<AttributeCombination>> generateNPlusOneAryCandidates(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref) {
         Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<>();
 
@@ -262,8 +265,8 @@ public class BINDER {
                             continue;
 
                         // Merge the dep attributes and ref attributes, respectively
-                        AttributeCombination nPlusOneDep = new AttributeCombination(depPivot.getTable(), (long) ((1 - threshold) * tableSizes[depPivot.getTable()]), depPivot.getAttributes(), depExtensionAttr);
-                        AttributeCombination nPlusOneRef = new AttributeCombination(refPivot.getTable(), (long) ((1 - threshold) * tableSizes[refPivot.getTable()]), refPivot.getAttributes(), refExtensionAttr);
+                        AttributeCombination nPlusOneDep = new AttributeCombination(depPivot.getTable(), 0, depPivot.getAttributes(), depExtensionAttr);
+                        AttributeCombination nPlusOneRef = new AttributeCombination(refPivot.getTable(), 0, refPivot.getAttributes(), refExtensionAttr);
 
                         // Store the new candidate
                         if (!nPlusOneAryDep2ref.containsKey(nPlusOneDep))

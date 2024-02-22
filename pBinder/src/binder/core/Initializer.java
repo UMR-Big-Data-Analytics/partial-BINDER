@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
 
 public class Initializer {
     static Logger logger = LoggerFactory.getLogger(Initializer.class);
@@ -75,6 +76,8 @@ public class Initializer {
 
         // update the pointer to respect the new columns
         binder.numColumns = binder.columnNames.size();
+        binder.columnSizes = new ArrayList<>(binder.numColumns);
+        for (int i = 0; i < binder.numColumns; i++) binder.columnSizes.add(0L);
 
         binder.nullValueColumns = new BitSet(binder.numColumns);
 

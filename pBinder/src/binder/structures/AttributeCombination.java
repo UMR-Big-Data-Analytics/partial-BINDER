@@ -6,6 +6,9 @@ public class AttributeCombination implements Comparable<AttributeCombination> {
 
     private final int table;
     public long violationsLeft;
+    public long distinctValues;
+    public long totalValues;
+    public long nulls;
     private int[] attributes;
 
     public AttributeCombination(int table, long violationsLeft, int... attributes) {

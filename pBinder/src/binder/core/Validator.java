@@ -1,5 +1,6 @@
 package binder.core;
 
+import binder.runner.Config;
 import binder.structures.AttributeCombination;
 import binder.structures.pINDSingleLinkedList;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -9,16 +10,13 @@ import it.unimi.dsi.fastutil.ints.IntListIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.swing.text.ElementIterator;
 import java.io.IOException;
 import java.util.*;
 
 public class Validator {
 
-    private final boolean nullIsSubset;
     private final ArrayList<Long> columnSizes;
     private final double threshold;
-    boolean nullIsNull;
     int numColumns;
     BitSet activeAttributes;
     List<AttributeCombination> attributeCombinations;
@@ -27,13 +25,10 @@ public class Validator {
     BINDER binder;
 
     public Validator(BINDER binder) {
-        this.nullIsNull = binder.nullIsNull;
-        this.nullIsSubset = binder.nullIsSubset;
-
         this.numColumns = binder.numColumns;
         this.columnSizes = binder.columnSizes;
 
-        this.threshold = binder.threshold;
+        this.threshold = binder.config.threshold;
 
         this.binder = binder;
     }
@@ -120,7 +115,7 @@ public class Validator {
      * n-ary puring method to update the naryDep2ref object.
      * Using the attributeCombinationGroup, the method ensures that only pINDs stay valid, which are still possible.
      *
-     * @param value
+     * @param value                       String value which connects the attributes
      * @param naryDep2ref                 The current n-ary pIND candidates
      * @param attributeCombinationGroup
      * @param attributeCombination2Bucket
@@ -173,7 +168,12 @@ public class Validator {
                 if (!attribute2Bucket.get(pINDCandidate.referenced).containsKey(value)) {
 
                     // if it is not present the open violations get decreased by the number of occurrences of the value
-                    pINDCandidate.violationsLeft -= occurrences;
+                    if (binder.config.duplicateHandling == Config.DuplicateHandling.AWARE) {
+                        pINDCandidate.violationsLeft -= occurrences;
+                    } else {
+                        // in an unaware setting, we only care about distinct violations
+                        pINDCandidate.violationsLeft -= 1;
+                    }
 
                     // if there should not be any violations left, we remove the attribute from the pINDCandidate attributes-
                     if (pINDCandidate.violationsLeft < 0L) {
@@ -208,43 +208,55 @@ public class Validator {
                 Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket = new Int2ObjectOpenHashMap<>(numColumns);
 
                 // the invertedIndex stores in which buckets each value exists
-                Map<String, IntArrayList> invertedIndex = new HashMap<>(2 ^ 16);
+                Map<String, IntArrayList> invertedIndex = new HashMap<>();
 
-                for (int attribute = getNextAttribute(); attribute != -1; attribute = getNextAttribute(++attribute)) {
-                    // load the bucket of the active attribute
-                    Map<String, Long> bucket = Bucketizer.readBucketAsList(binder, attribute, bucketNumber, subBucketNumber);
-                    attribute2Bucket.put(attribute, bucket);
+                // load the entire sub-bucket into the inverted index
+                loadSubBucket(bucketNumber, subBucketNumber, attribute2Bucket, invertedIndex);
 
-                    // Build the inverted index
-                    for (String value : bucket.keySet()) {
-                        if (!invertedIndex.containsKey(value)) {
-                            invertedIndex.put(value, new IntArrayList());
-                        }
-                        invertedIndex.get(value).add(attribute);
-                    }
-                }
-
-                // Check pINDs
-                // iteration over each active attribute
-                for (int attribute = getNextAttribute(); attribute != -1; attribute = getNextAttribute(++attribute)) {
-                    // iteration over the values of the attribute
-                    for (String value : attribute2Bucket.get(attribute).keySet()) {
-
-                        // Break if the attribute does not reference any other attribute
-                        if (attribute2Refs.get(attribute).isEmpty()) break;
-
-                        // Continue if the current value has already been handled
-                        if (!invertedIndex.containsKey(value)) continue;
-
-                        // Prune using the group of attributes containing the current value
-                        IntArrayList sameValueGroup = invertedIndex.get(value);
-                        prune(value, attribute2Refs, sameValueGroup, attribute2Bucket);
-
-                        // Remove the current value from the index as it has now been handled
-                        invertedIndex.remove(value);
-                    }
-                }
+                // validate the attributes using the bucket values
+                validateSubBucket(attribute2Refs, attribute2Bucket, invertedIndex);
             }
+        }
+    }
+
+    private void loadSubBucket(int bucketNumber, int subBucketNumber, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket, Map<String, IntArrayList> invertedIndex) throws IOException {
+        for (int attribute = getNextAttribute(); attribute != -1; attribute = getNextAttribute(++attribute)) {
+            // load the bucket of the active attribute
+            Map<String, Long> bucket = Bucketizer.readBucketAsList(binder, attribute, bucketNumber, subBucketNumber);
+            attribute2Bucket.put(attribute, bucket);
+
+            // Build the inverted index
+            addBucketToIndex(invertedIndex, attribute, bucket);
+        }
+    }
+
+    private void validateSubBucket(Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket, Map<String, IntArrayList> invertedIndex) {
+        for (int attribute = getNextAttribute(); attribute != -1; attribute = getNextAttribute(++attribute)) {
+            // iteration over the values of the attribute
+            for (String value : attribute2Bucket.get(attribute).keySet()) {
+
+                // Break if the attribute does not reference any other attribute
+                if (attribute2Refs.get(attribute).isEmpty()) break;
+
+                // Continue if the current value has already been handled
+                if (!invertedIndex.containsKey(value)) continue;
+
+                // Prune using the group of attributes containing the current value
+                IntArrayList sameValueGroup = invertedIndex.get(value);
+                prune(value, attribute2Refs, sameValueGroup, attribute2Bucket);
+
+                // Remove the current value from the index as it has now been handled
+                invertedIndex.remove(value);
+            }
+        }
+    }
+
+    private void addBucketToIndex(Map<String, IntArrayList> invertedIndex, int attribute, Map<String, Long> bucket) {
+        for (String value : bucket.keySet()) {
+            if (!invertedIndex.containsKey(value)) {
+                invertedIndex.put(value, new IntArrayList());
+            }
+            invertedIndex.get(value).add(attribute);
         }
     }
 
@@ -363,47 +375,49 @@ public class Validator {
         }
 
         // Depending on null value handling there are different actions we need to take
+        switch (binder.config.nullHandling) {
 
-        // if we assume null is a subset of everything (including other nulls):
-        if (this.nullIsNull) {
-            // iterate over all left-hand sides (dependent attributes)
-            for (int dep : columns) {
-                // if the left-hand side has no non-null values, it is a subset of all columns.
-                // We can directly add such a column to the final set.
-                if (columnSizes.get(dep) == 0) {
-                    dep2refFinal.put(dep, new pINDSingleLinkedList(0L, columns, dep));
-                } else {
-                    // TODO: account for NULLS in violations
-                    long violations = (long) ((1.0 - threshold) * ((double) columnSizes.get(dep)));
-                    attributes2refCheck.put(dep, new pINDSingleLinkedList(violations, nonEmptyColumns, dep));
+            // if we assume null is a subset of everything (including other nulls):
+            case SUBSET -> {
+                // iterate over all left-hand sides (dependent attributes)
+                for (int dep : columns) {
+                    // if the left-hand side has no non-null values, it is a subset of all columns.
+                    // We can directly add such a column to the final set.
+                    if (columnSizes.get(dep) == 0) {
+                        dep2refFinal.put(dep, new pINDSingleLinkedList(0L, columns, dep));
+                    } else {
+                        // TODO: account for NULLS in violations
+                        long violations = (long) ((1.0 - threshold) * ((double) columnSizes.get(dep)));
+                        attributes2refCheck.put(dep, new pINDSingleLinkedList(violations, nonEmptyColumns, dep));
+                    }
                 }
             }
-        }
 
-        // if we assume that null is a subset of everything but null:
-        // this case is basically a foreign key search, since we do not allow nulls in the right-hand side
-        else if (this.nullIsSubset) {
-            // TODO: rework this case
-            for (int dep : columns) {
-                // Empty columns are no foreign keys
-                if (binder.columnSizes.get(dep) == 0) continue;
+            // if we assume that null is a subset of everything but null:
+            // this case is basically a foreign key search, since we do not allow nulls in the right-hand side
+            case FOREIGN -> {
+                // TODO: rework this case
+                for (int dep : columns) {
+                    // Empty columns are no foreign keys
+                    if (binder.columnSizes.get(dep) == 0) continue;
 
-                // Referenced columns must not have null values and must come from different tables
-                IntArrayList seed = nonEmptyColumns.clone();
-                IntListIterator iterator = seed.iterator();
-                while (iterator.hasNext()) {
-                    int ref = iterator.nextInt();
-                    if ((binder.column2table[dep] == binder.column2table[ref]) || binder.nullValueColumns.get(ref))
-                        iterator.remove();
+                    // Referenced columns must not have null values and must come from different tables
+                    IntArrayList seed = nonEmptyColumns.clone();
+                    IntListIterator iterator = seed.iterator();
+                    while (iterator.hasNext()) {
+                        int ref = iterator.nextInt();
+                        if ((binder.column2table[dep] == binder.column2table[ref]) || binder.nullValueColumns.get(ref))
+                            iterator.remove();
+                    }
+
+                    attributes2refCheck.put(dep, new pINDSingleLinkedList(0L, seed, dep));
                 }
-
-                attributes2refCheck.put(dep, new pINDSingleLinkedList(0L, seed, dep));
             }
-        }
 
-        // if we assume that null != null:
-        else {
-            // TODO: we need to check if the attributes have null and if under a given threshold an pIND is still possible
+            // if we assume that null != null:
+            default -> {
+                // TODO: we need to check if the attributes have null and if under a given threshold an pIND is still possible
+            }
         }
     }
 }

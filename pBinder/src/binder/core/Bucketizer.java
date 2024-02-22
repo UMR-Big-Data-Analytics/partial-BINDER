@@ -27,8 +27,7 @@ public class Bucketizer {
      * @param binder The BINDER object which should be bucketized
      * @throws IOException if something goes wrong during file handling
      */
-    public static void bucketize(BINDER binder) throws IOException {
-        int[] emptyBuckets = getEmptyBuckets(binder);
+    public static void unaryBucketize(BINDER binder) throws IOException {
 
         for (int tableIndex = 0; tableIndex < binder.tableNames.length; tableIndex++) {
             String tableName = binder.tableNames[tableIndex];
@@ -46,9 +45,6 @@ public class Bucketizer {
             // Initialize value counters
             int numValuesSinceLastMemoryCheck = 0;
             int[] numValuesInColumn = new int[binder.numColumns];
-            for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
-                numValuesInColumn[columnNumber] = 0;
-            }
 
             // Load data for the current table
             FileInputIterator inputIterator = null;
@@ -88,13 +84,22 @@ public class Bucketizer {
             }
 
             // Write buckets to disk
-            toDisk(binder, emptyBuckets, numTableColumns, startTableColumnIndex, buckets);
+            toDisk(binder, numTableColumns, startTableColumnIndex, buckets);
         }
 
         // Calculate the bucket comparison order from the emptyBuckets to minimize the influence of sparse-attribute-issue
-        calculateBucketComparisonOrder(emptyBuckets, binder.numBucketsPerColumn, binder.numColumns, binder);
+        calculateBucketComparisonOrder(binder.numBucketsPerColumn, binder.numColumns, binder);
     }
 
+    /**
+     * Given the relevant attribute combinations, this method generates all required buckets.
+     *
+     * @param binder                the binder algorithm
+     * @param attributeCombinations all relevant attribute combinations. No matter if referred or dependant
+     * @param naryOffset            the number of attributes created in lower levels. Used as a bucket id system
+     * @param narySpillCounts       logging array
+     * @throws IOException If something goes wrong during bucket reading/writing
+     */
     static void naryBucketize(BINDER binder, List<AttributeCombination> attributeCombinations, int naryOffset, int[] narySpillCounts) throws IOException {
         // Identify the relevant attribute combinations for the different tables
         List<IntArrayList> table2attributeCombinationNumbers = new ArrayList<>(binder.tableNames.length);
@@ -103,16 +108,11 @@ public class Bucketizer {
         for (int attributeCombinationNumber = 0; attributeCombinationNumber < attributeCombinations.size(); attributeCombinationNumber++)
             table2attributeCombinationNumbers.get(attributeCombinations.get(attributeCombinationNumber).getTable()).add(attributeCombinationNumber);
 
-        // Count the empty buckets per attribute to identify sparse buckets and promising bucket levels for comparison
-        int[] emptyBuckets = new int[binder.numBucketsPerColumn];
-        for (int levelNumber = 0; levelNumber < binder.numBucketsPerColumn; levelNumber++)
-            emptyBuckets[levelNumber] = 0;
-
         for (int tableIndex = 0; tableIndex < binder.tableNames.length; tableIndex++) {
             int numTableAttributeCombinations = table2attributeCombinationNumbers.get(tableIndex).size();
             int startTableColumnIndex = binder.tableColumnStartIndexes[tableIndex];
 
-            logger.info("(" + (tableIndex+1) + "/" + binder.tableNames.length + ") Building nary buckets for " + binder.tableNames[tableIndex] + " [" + numTableAttributeCombinations + "]");
+            logger.info("(" + (tableIndex + 1) + "/" + binder.tableNames.length + ") Building nary buckets for " + binder.tableNames[tableIndex] + " [" + numTableAttributeCombinations + "]");
 
             if (numTableAttributeCombinations == 0) {
                 logger.debug("Skipped table " + binder.tableNames[tableIndex]);
@@ -135,97 +135,84 @@ public class Bucketizer {
                 numValuesInAttributeCombination[attributeCombinationNumber] = 0;
 
             // Load data
-            FileInputIterator inputIterator = null;
-            try {
-                inputIterator = new FileInputIterator(binder.tableNames[tableIndex], binder.config, binder.inputRowLimit);
+            FileInputIterator inputIterator = new FileInputIterator(binder.tableNames[tableIndex], binder.config, binder.inputRowLimit);
 
-                while (inputIterator.next()) {
-                    List<String> values = inputIterator.getValues();
+            while (inputIterator.next()) {
+                List<String> values = inputIterator.getValues();
 
-                    for (int attributeCombinationNumber : table2attributeCombinationNumbers.get(tableIndex)) {
-                        AttributeCombination attributeCombination = attributeCombinations.get(attributeCombinationNumber);
+                for (int attributeCombinationNumber : table2attributeCombinationNumbers.get(tableIndex)) {
+                    AttributeCombination attributeCombination = attributeCombinations.get(attributeCombinationNumber);
 
-                        // TODO: Why does this skip combinations where any value is NULL?
-                        boolean anyNull = false;
-                        List<String> attributeCombinationValues = new ArrayList<>(attributeCombination.getAttributes().length);
-                        for (int attribute : attributeCombination.getAttributes()) {
-                            String attributeValue = values.get(attribute - startTableColumnIndex);
-                            anyNull = (attributeValue == null);
-                            if (anyNull) break;
-                            attributeCombinationValues.add(attributeValue);
-                        }
-                        if (anyNull) continue;
+                    boolean anyNull = false;
+                    List<String> attributeCombinationValues = new ArrayList<>(attributeCombination.getAttributes().length);
+                    for (int attribute : attributeCombination.getAttributes()) {
+                        String attributeValue = values.get(attribute - startTableColumnIndex);
+                        anyNull = (attributeValue == null);
+                        if (anyNull) break;
+                        attributeCombinationValues.add(attributeValue);
+                    }
+                    if (anyNull) {
+                        attributeCombination.nulls++;
+                    }
 
-                        // TODO: This can produce incorrect results
-                        String valueSeparator = "#";
-                        String value = CollectionUtils.concat(attributeCombinationValues, valueSeparator);
+                    String valueSeparator = "#";
+                    String value = CollectionUtils.concat(attributeCombinationValues, valueSeparator);
 
-                        // Bucketize
-                        int bucketNumber = Bucketizer.calculateBucketFor(value, binder.numBucketsPerColumn);
-                        long amount = buckets.get(attributeCombinationNumber).get(bucketNumber).getOrDefault(value, 0L);
-                        if (amount == 0) {
-                            numValuesSinceLastMemoryCheck++;
-                            numValuesInAttributeCombination[attributeCombinationNumber] = numValuesInAttributeCombination[attributeCombinationNumber] + 1;
-                        }
-                        buckets.get(attributeCombinationNumber).get(bucketNumber).put(value, ++amount);
+                    // Bucketize
+                    int bucketNumber = Bucketizer.calculateBucketFor(value, binder.numBucketsPerColumn);
+                    long amount = buckets.get(attributeCombinationNumber).get(bucketNumber).getOrDefault(value, 0L);
+                    if (amount == 0) {
+                        numValuesSinceLastMemoryCheck++;
+                        numValuesInAttributeCombination[attributeCombinationNumber] = numValuesInAttributeCombination[attributeCombinationNumber] + 1;
+                    }
+                    buckets.get(attributeCombinationNumber).get(bucketNumber).put(value, ++amount);
 
-                        // Occasionally check the memory consumption
-                        if (numValuesSinceLastMemoryCheck >= binder.memoryCheckFrequency) {
-                            numValuesSinceLastMemoryCheck = 0;
+                    // Occasionally check the memory consumption
+                    if (numValuesSinceLastMemoryCheck >= binder.memoryCheckFrequency) {
+                        numValuesSinceLastMemoryCheck = 0;
 
-                            // Spill to disk if necessary
-                            while (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() > binder.maxMemoryUsage) {
-                                // Identify largest buffer
-                                int largestAttributeCombinationNumber = 0;
-                                int largestAttributeCombinationSize = numValuesInAttributeCombination[largestAttributeCombinationNumber];
-                                for (int otherAttributeCombinationNumber = 1; otherAttributeCombinationNumber < numValuesInAttributeCombination.length; otherAttributeCombinationNumber++) {
-                                    if (largestAttributeCombinationSize < numValuesInAttributeCombination[otherAttributeCombinationNumber]) {
-                                        largestAttributeCombinationNumber = otherAttributeCombinationNumber;
-                                        largestAttributeCombinationSize = numValuesInAttributeCombination[otherAttributeCombinationNumber];
-                                    }
+                        // Spill to disk if necessary
+                        while (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() > binder.maxMemoryUsage) {
+                            // Identify largest buffer
+                            int largestAttributeCombinationNumber = 0;
+                            int largestAttributeCombinationSize = numValuesInAttributeCombination[largestAttributeCombinationNumber];
+                            for (int otherAttributeCombinationNumber = 1; otherAttributeCombinationNumber < numValuesInAttributeCombination.length; otherAttributeCombinationNumber++) {
+                                if (largestAttributeCombinationSize < numValuesInAttributeCombination[otherAttributeCombinationNumber]) {
+                                    largestAttributeCombinationNumber = otherAttributeCombinationNumber;
+                                    largestAttributeCombinationSize = numValuesInAttributeCombination[otherAttributeCombinationNumber];
                                 }
-
-                                // Write buckets from the largest column to disk and empty written buckets
-                                for (int largeBucketNumber = 0; largeBucketNumber < binder.numBucketsPerColumn; largeBucketNumber++) {
-                                    writeBucket(binder.tempFolder, naryOffset + largestAttributeCombinationNumber, largeBucketNumber, -1, buckets.get(largestAttributeCombinationNumber).get(largeBucketNumber), binder.columnSizes);
-                                    buckets.get(largestAttributeCombinationNumber).set(largeBucketNumber, new HashMap<>());
-                                }
-
-                                numValuesInAttributeCombination[largestAttributeCombinationNumber] = 0;
-
-                                narySpillCounts[largestAttributeCombinationNumber] = narySpillCounts[largestAttributeCombinationNumber] + 1;
-
-                                System.gc();
                             }
+
+                            // Write buckets from the largest column to disk and empty written buckets
+                            for (int largeBucketNumber = 0; largeBucketNumber < binder.numBucketsPerColumn; largeBucketNumber++) {
+                                writeBucket(binder.tempFolder, naryOffset + largestAttributeCombinationNumber, largeBucketNumber, -1, buckets.get(largestAttributeCombinationNumber).get(largeBucketNumber), binder.columnSizes);
+                                buckets.get(largestAttributeCombinationNumber).set(largeBucketNumber, new HashMap<>());
+                            }
+
+                            numValuesInAttributeCombination[largestAttributeCombinationNumber] = 0;
+
+                            narySpillCounts[largestAttributeCombinationNumber] = narySpillCounts[largestAttributeCombinationNumber] + 1;
+
+                            System.gc();
                         }
                     }
                 }
-            } finally {
-                inputIterator.close();
             }
+            inputIterator.close();
+
 
             // Write buckets to disk
             for (int attributeCombinationNumber : table2attributeCombinationNumbers.get(tableIndex)) {
-                if (narySpillCounts[attributeCombinationNumber] == 0) { // if an attribute combination was spilled to disk, we do not count empty buckets for this attribute combination, because the partitioning distributes the values evenly and hence all buckets should have been populated
-                    for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
-                        Map<String, Long> bucket = buckets.get(attributeCombinationNumber).get(bucketNumber);
-                        if (bucket.size() != 0)
-                            Bucketizer.writeBucket(binder.tempFolder, naryOffset + attributeCombinationNumber, bucketNumber, -1, bucket, binder.columnSizes);
-                        else
-                            emptyBuckets[bucketNumber] = emptyBuckets[bucketNumber] + 1;
-                    }
-                } else {
-                    for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
-                        Map<String, Long> bucket = buckets.get(attributeCombinationNumber).get(bucketNumber);
-                        if (bucket.size() != 0)
-                            Bucketizer.writeBucket(binder.tempFolder, naryOffset + attributeCombinationNumber, bucketNumber, -1, bucket, binder.columnSizes);
-                    }
+                for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
+                    Map<String, Long> bucket = buckets.get(attributeCombinationNumber).get(bucketNumber);
+                    if (bucket.size() != 0)
+                        Bucketizer.writeBucket(binder.tempFolder, naryOffset + attributeCombinationNumber, bucketNumber, -1, bucket, binder.columnSizes);
                 }
             }
         }
 
         // Calculate the bucket comparison order from the emptyBuckets to minimize the influence of sparse-attribute-issue
-        calculateBucketComparisonOrder(emptyBuckets, binder.numBucketsPerColumn, binder.numColumns, binder);
+        calculateBucketComparisonOrder(binder.numBucketsPerColumn, binder.numColumns, binder);
     }
 
 
@@ -253,7 +240,7 @@ public class Bucketizer {
                 }
             }
 
-            // Write buckets from largest column to disk and empty written buckets
+            // Write buckets from the largest column to disk and empty written buckets
             int globalLargestColumnIndex = startTableColumnIndex + largestColumnNumber;
             for (int largeBucketNumber = 0; largeBucketNumber < binder.numBucketsPerColumn; largeBucketNumber++) {
                 writeBucket(binder.tempFolder, globalLargestColumnIndex, largeBucketNumber, -1, buckets.get(largestColumnNumber).get(largeBucketNumber), binder.columnSizes);
@@ -267,37 +254,15 @@ public class Bucketizer {
         }
     }
 
-    private static void toDisk(BINDER binder, int[] emptyBuckets, int numTableColumns, int startTableColumnIndex, List<List<Map<String, Long>>> buckets) throws IOException {
+    private static void toDisk(BINDER binder, int numTableColumns, int startTableColumnIndex, List<List<Map<String, Long>>> buckets) throws IOException {
         for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
             int globalColumnIndex = startTableColumnIndex + columnNumber;
-            if (binder.spillCounts[globalColumnIndex] == 0) { // if a column was spilled to disk, we do not count empty buckets for this column, because the partitioning distributes the values evenly and hence all buckets should have been populated
-                for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
-                    Map<String, Long> bucket = buckets.get(columnNumber).get(bucketNumber);
-                    if (bucket.size() != 0)
-                        writeBucket(binder.tempFolder, globalColumnIndex, bucketNumber, -1, bucket, binder.columnSizes);
-                    else emptyBuckets[bucketNumber] = emptyBuckets[bucketNumber] + 1;
-                }
-            } else {
-                for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
-                    Map<String, Long> bucket = buckets.get(columnNumber).get(bucketNumber);
-                    if (bucket.size() != 0)
-                        writeBucket(binder.tempFolder, globalColumnIndex, bucketNumber, -1, bucket, binder.columnSizes);
-                }
+            for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
+                Map<String, Long> bucket = buckets.get(columnNumber).get(bucketNumber);
+                if (bucket.size() != 0)
+                    writeBucket(binder.tempFolder, globalColumnIndex, bucketNumber, -1, bucket, binder.columnSizes);
             }
         }
-    }
-
-    private static int[] getEmptyBuckets(BINDER binder) {
-        // Initialize the counters that count the empty buckets per bucket level to identify sparse buckets and promising bucket levels for comparison
-        int[] emptyBuckets = new int[binder.numBucketsPerColumn];
-        for (int levelNumber = 0; levelNumber < binder.numBucketsPerColumn; levelNumber++)
-            emptyBuckets[levelNumber] = 0;
-
-        // Initialize aggregators to measure the size of the columns
-        binder.columnSizes = new ArrayList<>(binder.numColumns);
-        for (int column = 0; column < binder.numColumns; column++)
-            binder.columnSizes.add(0L);
-        return emptyBuckets;
     }
 
     static int calculateBucketFor(String value, int numBucketsPerColumn) {
@@ -308,10 +273,10 @@ public class Bucketizer {
         return ((Math.abs(value.hashCode() % (numBucketsPerColumn * numSubBuckets)) - bucketNumber) / numBucketsPerColumn); // range partitioning
     }
 
-    static void calculateBucketComparisonOrder(int[] emptyBuckets, int numBucketsPerColumn, int numColumns, BINDER binder) {
+    static void calculateBucketComparisonOrder(int numBucketsPerColumn, int numColumns, BINDER binder) {
         List<Level> levels = new ArrayList<>(numColumns);
         for (int level = 0; level < numBucketsPerColumn; level++)
-            levels.add(new Level(level, emptyBuckets[level]));
+            levels.add(new Level(level, 0));
         Collections.sort(levels);
 
         binder.bucketComparisonOrder = new int[numBucketsPerColumn];

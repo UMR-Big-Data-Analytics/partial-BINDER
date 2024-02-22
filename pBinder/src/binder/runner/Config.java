@@ -21,9 +21,9 @@ public class Config {
     public String nullString = "";
 
     // different handling options
-    public double threshold = 1.0;
-    public NullHandling nullHandling = NullHandling.SUBSET;
-    public DuplicateHandling duplicateHandling = DuplicateHandling.AWARE;
+    public double threshold;
+    public NullHandling nullHandling;
+    public DuplicateHandling duplicateHandling;
 
     // output related settings
     public String tempFolder = ".\\temp";
