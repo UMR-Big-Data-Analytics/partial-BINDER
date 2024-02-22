@@ -20,6 +20,11 @@ public class Config {
     public boolean skipDifferingLines = true; // Skip lines that differ from the dataset's schema
     public String nullString = "";
 
+    // different handling options
+    public double threshold = 1.0;
+    public NullHandling nullHandling = NullHandling.SUBSET;
+    public DuplicateHandling duplicateHandling = DuplicateHandling.AWARE;
+
     // output related settings
     public String tempFolder = ".\\temp";
     public String resultFolder = ".\\results";
@@ -29,8 +34,11 @@ public class Config {
     public boolean detectNary = true;
 
 
-    public Config(Config.Dataset dataset) {
+    public Config(Config.Dataset dataset, double threshold, NullHandling nullHandling, DuplicateHandling duplicateHandling) {
         this.setDataset(dataset);
+        this.threshold = threshold;
+        this.nullHandling = nullHandling;
+        this.duplicateHandling = duplicateHandling;
     }
 
     private void setDataset(Config.Dataset dataset) {
@@ -85,5 +93,13 @@ public class Config {
 
     public enum Dataset {
         TPCH_1, KAGGLE, DATA_GOV, UEFA, TEST
+    }
+
+    public enum NullHandling {
+        SUBSET, FOREIGN, EQUALITY, INEQUALITY
+    }
+
+    public enum DuplicateHandling {
+        AWARE, UNAWARE
     }
 }

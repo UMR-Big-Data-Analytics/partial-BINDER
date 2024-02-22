@@ -16,7 +16,7 @@ public class MetanomeTestRunner {
     }
 
     public static void main(String[] args) {
-        MetanomeTestRunner.run(new Config(Config.Dataset.TPCH_1), "test");
+        MetanomeTestRunner.run(new Config(Config.Dataset.TPCH_1, 1.0, Config.NullHandling.SUBSET, Config.DuplicateHandling.AWARE), "test");
     }
 
 }
