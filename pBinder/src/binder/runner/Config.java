@@ -49,6 +49,15 @@ public class Config {
                 this.separator = ',';
                 this.hasHeader = true;
             }
+            case ANIMAL_CROSSING -> {
+                this.datasetName = "Kaggle\\animal-crossing-new-horizons-nookplaza-dataset";
+                this.relationNames = new String[]{"accessories", "achievements", "art", "bags", "bottoms", "construction",
+                        "dress-up", "fencing", "fish", "floors", "fossils", "headwear", "housewares", "insects",
+                        "miscellaneous", "music", "other", "photos", "posters", "reactions", "recipes", "rugs", "shoes",
+                        "socks", "tools", "tops", "umbrellas", "villagers", "wall-mounted", "wallpaper"};
+                this.separator = ',';
+                this.hasHeader = true;
+            }
             case TPCH_1 -> {
                 this.datasetName = "TPCH_1";
                 this.relationNames = new String[]{"customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier"};
@@ -92,7 +101,7 @@ public class Config {
     }
 
     public enum Dataset {
-        TPCH_1, KAGGLE, DATA_GOV, UEFA, TEST
+        TPCH_1, KAGGLE, DATA_GOV, UEFA, TEST, ANIMAL_CROSSING
     }
 
     public enum NullHandling {
