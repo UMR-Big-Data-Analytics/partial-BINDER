@@ -1,6 +1,7 @@
 package binder.core;
 
 import binder.io.FileInputIterator;
+import binder.runner.Config;
 import binder.structures.Attribute;
 import binder.structures.AttributeCombination;
 import binder.structures.Level;
@@ -28,7 +29,7 @@ public class Bucketizer {
      * @param binder The BINDER object which should be bucketized
      * @throws IOException if something goes wrong during file handling
      */
-    public static Attribute[] unaryBucketize(BINDER binder) throws IOException {
+    public static void unaryBucketize(BINDER binder) throws IOException {
 
         Attribute[] unaryAttributes = new Attribute[binder.numColumns];
         int[] emptyBuckets = getEmptyBuckets(binder);
@@ -101,7 +102,6 @@ public class Bucketizer {
         // Calculate the bucket comparison order from the emptyBuckets to minimize the influence of sparse-attribute-issue
         calculateBucketComparisonOrder(emptyBuckets, binder.numBucketsPerColumn, binder.numColumns, binder);
 
-        return unaryAttributes;
     }
 
     /**
@@ -168,6 +168,9 @@ public class Bucketizer {
                     }
                     if (anyNull) {
                         attributeCombination.nulls++;
+                        if (binder.config.nullHandling == Config.NullHandling.SUBSET) {
+                            continue;
+                        }
                     }
 
                     String valueSeparator = "#";
