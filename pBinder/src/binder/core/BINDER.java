@@ -12,8 +12,11 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 public class BINDER {
@@ -53,7 +56,7 @@ public class BINDER {
     public ArrayList<Long> columnSizes = null;
     protected String tempFolderPath = "BINDER_temp"; // TODO: Use Metanome temp file functionality here (interface TempFileAlgorithm)
     protected boolean nullIsSubset = false;
-    protected int maxNaryLevel = -1;
+    protected int maxNaryLevel = 3;
     protected Config config;
     Int2ObjectOpenHashMap<List<Map<String, Long>>> attribute2subBucketsCache = null;
     int[] tableColumnStartIndexes = null;
@@ -169,7 +172,8 @@ public class BINDER {
             for (List<AttributeCombination> columnCombination : nPlusOneAryDep2ref.values())
                 attributeCombinationSet.addAll(columnCombination);
             List<AttributeCombination> attributeCombinations = new ArrayList<>(attributeCombinationSet);
-            logger.info("Found " + attributeCombinations.size() + " relevant attribute combinations");
+            Map<AttributeCombination, List<AttributeCombination>> finalNPlusOneAryDep2ref = nPlusOneAryDep2ref;
+            logger.info("Found " + attributeCombinations.size() + " relevant attribute combinations forming " + nPlusOneAryDep2ref.keySet().stream().mapToInt(x -> finalNPlusOneAryDep2ref.get(x).size()).sum() + " candidates");
 
             // Extend the columnSize array
             for (int i = 0; i < attributeCombinations.size(); i++)
@@ -197,6 +201,31 @@ public class BINDER {
 
             this.naryDep2ref.putAll(nPlusOneAryDep2ref);
 
+            BufferedWriter bw = Files.newBufferedWriter(Path.of("results/temp.txt"));
+            for (AttributeCombination a : nPlusOneAryDep2ref.keySet()) {
+                String relName = tableNames[a.getTable()];
+                relName = relName.substring(0, relName.length() - 4);
+                StringBuilder out = new StringBuilder();
+                out.append('(');
+                for (int attrId : a.getAttributes()) {
+                    out.append(relName).append('.').append(columnNames.get(attrId)).append(",");
+                }
+                out.delete(out.length() - 1, out.length()).append(") <= (");
+                for (AttributeCombination ref : nPlusOneAryDep2ref.get(a)) {
+                    String refRel = tableNames[ref.getTable()];
+                    refRel = refRel.substring(0, refRel.length() - 4);
+                    for (int attrId : ref.getAttributes()) {
+                        out.append(refRel).append('.').append(columnNames.get(attrId)).append(",");
+                    }
+                    out.delete(out.length() - 1, out.length()).append(") (");
+                }
+                out.delete(out.length() - 2, out.length());
+                bw.write(out.toString());
+                bw.newLine();
+            }
+
+            bw.flush();
+            bw.close();
             // Add the number of created buckets for n-ary INDs of this level to the naryOffset
             naryOffset = naryOffset + attributeCombinations.size();
 
@@ -279,10 +308,19 @@ public class BINDER {
         return nPlusOneAryDep2ref;
     }
 
+    /**
+     * Given two combinations, this method checks if the first n-1 entries are equal
+     *
+     * @param combination1 the first combination
+     * @param combination2 the second combination
+     * @return whether any of the first n-1 attributes do not match.
+     */
     private boolean notSamePrefix(AttributeCombination combination1, AttributeCombination combination2) {
-        for (int i = 0; i < combination1.size() - 1; i++)
-            if (combination1.getAttributes()[i] != combination2.getAttributes()[i])
+        for (int i = 0; i < combination1.size() - 1; i++) {
+            if (combination1.getAttributes()[i] != combination2.getAttributes()[i]) {
                 return true;
+            }
+        }
         return false;
     }
 
