@@ -1,4 +1,4 @@
-package de.metanome.algorithms.binder.structures;
+package binder.structures;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 

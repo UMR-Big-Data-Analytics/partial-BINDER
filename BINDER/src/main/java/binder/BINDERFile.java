@@ -1,4 +1,4 @@
-package de.metanome.algorithms;
+package binder;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -19,9 +19,9 @@ import de.metanome.algorithm_integration.input.InputGenerationException;
 import de.metanome.algorithm_integration.input.RelationalInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import de.metanome.algorithm_integration.result_receiver.InclusionDependencyResultReceiver;
-import de.metanome.algorithms.binder.core.BINDER;
-import de.uni_potsdam.hpi.utils.CollectionUtils;
-import de.uni_potsdam.hpi.utils.FileUtils;
+import binder.core.BINDER;
+import binder.utils.CollectionUtils;
+import binder.utils.FileUtils;
 
 public class BINDERFile extends BINDER implements InclusionDependencyAlgorithm, RelationalInputParameterAlgorithm, IntegerParameterAlgorithm, StringParameterAlgorithm, BooleanParameterAlgorithm {
 

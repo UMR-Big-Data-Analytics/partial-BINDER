@@ -47,7 +47,7 @@ public class Bucketizer {
                 unaryAttributes[i] = new Attribute(tableIndex, i-startTableColumnIndex, i);
             }
 
-            logger.info("(" + (tableIndex + 1) + "/" + (binder.tableNames.length) + ") Building unary buckets for " + tableName + " [" + numTableColumns + "]");
+            logger.debug("(" + (tableIndex + 1) + "/" + (binder.tableNames.length) + ") Building unary buckets for " + tableName + " [" + numTableColumns + "]");
 
             // Initialize buckets
             List<List<Map<String, Long>>> buckets = initializeBuckets(binder, numTableColumns);

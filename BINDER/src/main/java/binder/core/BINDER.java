@@ -1,4 +1,4 @@
-package de.metanome.algorithms.binder.core;
+package binder.core;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -37,21 +37,19 @@ import de.metanome.algorithm_integration.result_receiver.ColumnNameMismatchExcep
 import de.metanome.algorithm_integration.result_receiver.CouldNotReceiveResultException;
 import de.metanome.algorithm_integration.result_receiver.InclusionDependencyResultReceiver;
 import de.metanome.algorithm_integration.results.InclusionDependency;
-import de.metanome.algorithms.binder.io.FileInputIterator;
-import de.metanome.algorithms.binder.io.InputIterator;
-import de.metanome.algorithms.binder.io.SqlInputIterator;
-import de.metanome.algorithms.binder.structures.Attribute;
-import de.metanome.algorithms.binder.structures.AttributeCombination;
-import de.metanome.algorithms.binder.structures.IntSingleLinkedList;
-import de.metanome.algorithms.binder.structures.IntSingleLinkedList.ElementIterator;
-import de.metanome.algorithms.binder.structures.Level;
-import de.metanome.algorithms.binder.structures.PruningStatistics;
-import de.uni_potsdam.hpi.dao.DataAccessObject;
-import de.uni_potsdam.hpi.utils.CollectionUtils;
-import de.uni_potsdam.hpi.utils.DatabaseUtils;
-import de.uni_potsdam.hpi.utils.FileUtils;
-import de.uni_potsdam.hpi.utils.LoggingUtils;
-import de.uni_potsdam.hpi.utils.MeasurementUtils;
+import binder.io.FileInputIterator;
+import binder.io.InputIterator;
+import binder.structures.Attribute;
+import binder.structures.AttributeCombination;
+import binder.structures.IntSingleLinkedList;
+import binder.structures.IntSingleLinkedList.ElementIterator;
+import binder.structures.Level;
+import binder.structures.PruningStatistics;
+import binder.utils.CollectionUtils;
+import binder.utils.DatabaseUtils;
+import binder.utils.FileUtils;
+import binder.utils.LoggingUtils;
+import binder.utils.MeasurementUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
@@ -65,7 +63,6 @@ public class BINDER {
 	protected DatabaseConnectionGenerator databaseConnectionGenerator = null;
 	protected RelationalInputGenerator[] fileInputGenerator = null;
 	protected InclusionDependencyResultReceiver resultReceiver = null;
-	protected DataAccessObject dao = null;
 	protected String[] tableNames = null;
 	protected String databaseName = null;
 	protected String tempFolderPath = "BINDER_temp"; // TODO: Use Metanome temp file functionality here (interface TempFileAlgorithm)
@@ -130,7 +127,6 @@ public class BINDER {
 		 
 		return "BINDER: \r\n\t" +
 				"input: " + input + "\r\n\t" +
-				"dao: " + ((this.dao != null) ? this.dao.getClass().getName() : "-") + "\r\n\t" +
 				"databaseName: " + this.databaseName + "\r\n\t" +
 				"inputRowLimit: " + this.inputRowLimit + "\r\n\t" +
 				"resultReceiver: " + ((this.resultReceiver != null) ? this.resultReceiver.getClass().getName() : "-") + "\r\n\t" +
@@ -176,7 +172,7 @@ public class BINDER {
 	
 	private String toString(OpenBitSet o) {
 		StringBuilder builder = new StringBuilder("[");
-		for (int i = 0; i < o.length(); i++)
+		for (int i = 0; i < o.size(); i++)
 			builder.append((o.get(i) == true) ? 1 : 0);
 		builder.append("]");
 		return builder.toString();
@@ -277,11 +273,8 @@ public class BINDER {
 		
 		for (int tableIndex = 0; tableIndex < this.tableNames.length; tableIndex++) {
 			this.tableColumnStartIndexes[tableIndex] = this.columnNames.size();
-			
-			if (this.databaseConnectionGenerator != null)
-				this.collectStatisticsFrom(this.databaseConnectionGenerator, tableIndex);
-			else
-				this.collectStatisticsFrom(this.fileInputGenerator[tableIndex]);
+
+			this.collectStatisticsFrom(this.fileInputGenerator[tableIndex]);
 		}
 		
 		this.numColumns = this.columnNames.size();
@@ -310,28 +303,6 @@ public class BINDER {
 			for (int j = currentStart; j < nextStart; j++)
 				this.column2table[j] = table;
 			table++;
-		}
-	}
-	
-	private void collectStatisticsFrom(DatabaseConnectionGenerator inputGenerator, int tableIndex) throws InputGenerationException, AlgorithmConfigurationException {
-		ResultSet resultSet = null;
-		try {
-			// Query attribute names and types
-			resultSet = inputGenerator.generateResultSetFromSql(this.dao.buildColumnMetaQuery(this.databaseName, this.tableNames[tableIndex]));
-			this.dao.extract(this.columnNames, new ArrayList<String>(), this.columnTypes, resultSet);
-		}
-		catch (SQLException e) {
-			e.printStackTrace();
-			throw new InputGenerationException(e.getMessage());
-		}
-		finally {
-			DatabaseUtils.close(resultSet);
-			try {
-				inputGenerator.closeAllStatements();
-			}
-			catch (SQLException e) {
-				e.printStackTrace();
-			}
 		}
 	}
 
@@ -388,10 +359,8 @@ public class BINDER {
 			// Load data
 			InputIterator inputIterator = null;
 			try {
-				if (this.databaseConnectionGenerator != null)
-					inputIterator = new SqlInputIterator(this.databaseConnectionGenerator, this.dao, tableName, this.inputRowLimit);
-				else
-					inputIterator = new FileInputIterator(this.fileInputGenerator[tableIndex], this.inputRowLimit);
+
+				inputIterator = new FileInputIterator(this.fileInputGenerator[tableIndex], this.inputRowLimit);
 				
 				while (inputIterator.next()) {
 					for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
@@ -1209,100 +1178,6 @@ public class BINDER {
 		}
 		System.out.println();
 	}
-	
-	private void detectNaryViaSingleChecks() throws InputGenerationException, AlgorithmConfigurationException {
-		if (this.databaseConnectionGenerator == null)
-			throw new InputGenerationException("n-ary IND detection using De Marchi's MIND algorithm only possible on databases");
-		
-		// Clean temp
-		if (this.cleanTemp)
-			FileUtils.cleanDirectory(this.tempFolder);
-		
-		// Initialize nPlusOneAryDep2ref with unary dep2ref
-		Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<AttributeCombination, List<AttributeCombination>>();
-		for (int dep : this.dep2ref.keySet()) {
-			AttributeCombination depAttributeCombination = new AttributeCombination(this.column2table[dep], dep);
-			List<AttributeCombination> refAttributeCombinations = new LinkedList<AttributeCombination>();
-			
-			ElementIterator refIterator = this.dep2ref.get(dep).elementIterator();
-			while (refIterator.hasNext()) {
-				int ref = refIterator.next();
-				refAttributeCombinations.add(new AttributeCombination(this.column2table[ref], ref));
-			}
-			nPlusOneAryDep2ref.put(depAttributeCombination, refAttributeCombinations);
-		}
-		
-		// Generate, bucketize and test the n-ary INDs level-wise
-		this.naryDep2ref = new HashMap<AttributeCombination, List<AttributeCombination>>();
-		this.naryGenerationTime = new LongArrayList();
-		this.naryCompareTime = new LongArrayList();
-		while (true) {
-			// Generate (n+1)-ary IND candidates from the already identified unary and n-ary IND candidates
-			long naryGenerationTimeCurrent = System.currentTimeMillis();
-			nPlusOneAryDep2ref = this.generateNPlusOneAryCandidates(nPlusOneAryDep2ref);
-			if (nPlusOneAryDep2ref.isEmpty())
-				break;
-			this.naryGenerationTime.add(System.currentTimeMillis() - naryGenerationTimeCurrent);
-			
-			// Check the n-ary IND candidates
-			long naryCompareTimeCurrent = System.currentTimeMillis();
-			
-			Iterator<AttributeCombination> depIterator = nPlusOneAryDep2ref.keySet().iterator();
-			while (depIterator.hasNext()) {
-				AttributeCombination dep = depIterator.next();
-				
-				List<AttributeCombination> refs = nPlusOneAryDep2ref.get(dep);
-				
-				Iterator<AttributeCombination> refIterator = refs.iterator();
-				while (refIterator.hasNext()) {
-					AttributeCombination ref = refIterator.next();
-					
-					String depTableName = this.tableNames[dep.getTable()];
-					String[] depAttributeNames = dep.getAttributes(this.columnNames);
-					String refTableName = this.tableNames[ref.getTable()];
-					String[] refAttributeNames = ref.getAttributes(this.columnNames);
-					
-					String query = this.dao.buildSelectColumnCombinationNotInColumnCombinationQuery(depTableName, depAttributeNames, refTableName, refAttributeNames, 2);
-					
-					ResultSet resultSet = null;
-					try {
-						resultSet = this.databaseConnectionGenerator.generateResultSetFromSql(query);
-						
-						// Check if there is a non-NULL value in the dep attribute combination
-						if (resultSet.next())
-							if ((resultSet.getString(1) != null) || resultSet.next())
-								refIterator.remove();
-					}
-					catch (InputGenerationException e) {
-						e.getCause().printStackTrace();
-						throw new InputGenerationException(e.getMessage() + "\nThe failed query was:\n" + query, e);
-					}
-					catch (SQLException e) {
-						e.printStackTrace();
-						throw new InputGenerationException(e.getMessage() + "\nThe failed query was:\n" + query, e);
-					}
-					finally {
-						try {
-							if (resultSet != null) {
-								Statement statement = resultSet.getStatement();
-								DatabaseUtils.close(resultSet);
-								DatabaseUtils.close(statement);
-							}
-						}
-						catch (SQLException e) {
-						}
-					}
-				}
-				
-				if (nPlusOneAryDep2ref.get(dep).isEmpty())
-					depIterator.remove();
-			}
-			
-			this.naryDep2ref.putAll(nPlusOneAryDep2ref);
-			
-			this.naryCompareTime.add(System.currentTimeMillis() - naryCompareTimeCurrent);
-		}
-	}
 /**/
 	private Map<AttributeCombination, List<AttributeCombination>> generateNPlusOneAryCandidates(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref) {
 		Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<AttributeCombination, List<AttributeCombination>>();
@@ -1531,9 +1406,6 @@ public class BINDER {
 			// Load data
 			InputIterator inputIterator = null;
 			try {
-				if (this.databaseConnectionGenerator != null)
-					inputIterator = new SqlInputIterator(this.databaseConnectionGenerator, this.dao, tableName, this.inputRowLimit);
-				else
 					inputIterator = new FileInputIterator(this.fileInputGenerator[tableIndex], this.inputRowLimit);
 				
 				while (inputIterator.next()) {

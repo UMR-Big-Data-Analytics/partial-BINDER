@@ -1,4 +1,4 @@
-package de.metanome.algorithms.binder.structures;
+package binder.structures;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -9,7 +9,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import de.uni_potsdam.hpi.utils.DatabaseUtils;
+import binder.utils.DatabaseUtils;
 
 public class Attribute implements Comparable<Attribute> {
 
