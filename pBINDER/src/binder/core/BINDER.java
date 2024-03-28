@@ -30,7 +30,7 @@ public class BINDER {
     public boolean detectNary = true;
     public int inputRowLimit = -1;
     public int numBucketsPerColumn = 10; // Initial number of buckets per column
-    public int memoryCheckFrequency = 100; // Number of new, i.e., so far unseen values during bucketing that trigger a memory consumption check
+    public int memoryCheckFrequency = 1000; // Number of new, i.e., so far unseen values during bucketing that trigger a memory consumption check
     public int maxMemoryUsagePercentage = 60; // The algorithm spills to disc if memory usage exceeds X% of available memory
     public int numColumns;
     public long availableMemory;
