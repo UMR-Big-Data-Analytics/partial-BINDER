@@ -1,6 +1,6 @@
 package binder.runner;
 
-import binder.BINDERFile;
+import binder.core.BINDERFile;
 import binder.core.BINDER;
 import binder.io.DefaultFileInputGenerator;
 import binder.utils.FileUtils;
@@ -8,7 +8,25 @@ import binder.utils.FileUtils;
 import java.io.File;
 import java.io.IOException;
 
-public class MetanomeMock {
+public class Runner {
+
+    public static void main(String[] args) {
+        Runner.run(new Config(Config.Dataset.TPCH_1, 1.0, Config.NullHandling.SUBSET, Config.DuplicateHandling.AWARE), "test");
+    }
+
+    public static void run(Config conf, String runLabel) {
+        long time = System.currentTimeMillis();
+        String defaultTempFolderPath = conf.tempFolder;
+        String defaultMeasurementsFolderPath = conf.resultFolder;
+
+        executeBINDER(conf);
+
+        conf.tempFolder = defaultTempFolderPath;
+        conf.resultFolder = defaultMeasurementsFolderPath;
+
+        System.out.println("(" + runLabel + ") Runtime: " + (System.currentTimeMillis() - time) + " ms");
+    }
+
 
     public static void executeBINDER(Config conf) {
         try {
@@ -36,4 +54,5 @@ public class MetanomeMock {
             e.printStackTrace();
         }
     }
+
 }
