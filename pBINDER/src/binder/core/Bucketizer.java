@@ -40,11 +40,12 @@ public class Bucketizer {
             // get the index where the columns start
             int startTableColumnIndex = binder.tableColumnStartIndexes[tableIndex];
             // get the number of columns belonging to the given table
-            int numTableColumns = (binder.tableColumnStartIndexes.length > tableIndex + 1) ? binder.tableColumnStartIndexes[tableIndex + 1] - startTableColumnIndex : binder.numColumns - startTableColumnIndex;
+            int numTableColumns = (binder.tableColumnStartIndexes.length > tableIndex + 1) ? binder.tableColumnStartIndexes[tableIndex + 1] - startTableColumnIndex :
+                    binder.numColumns - startTableColumnIndex;
 
             // init empty attributes for the current table
             for (int i = startTableColumnIndex; i < startTableColumnIndex + numTableColumns; i++) {
-                unaryAttributes[i] = new Attribute(tableIndex, i-startTableColumnIndex, i);
+                unaryAttributes[i] = new Attribute(tableIndex, i - startTableColumnIndex, i);
             }
 
             logger.debug("(" + (tableIndex + 1) + "/" + (binder.tableNames.length) + ") Building unary buckets for " + tableName + " [" + numTableColumns + "]");
@@ -75,18 +76,15 @@ public class Bucketizer {
                         // Bucketize
                         unaryAttributes[startTableColumnIndex + columnNumber].totalValues++;
                         int bucketNumber = calculateBucketFor(value, binder.numBucketsPerColumn);
-                        long amount = buckets.get(columnNumber).get(bucketNumber).getOrDefault(value, 0L);
-                        if (amount == 0) {
+                        if (1L == buckets.get(columnNumber).get(bucketNumber).compute(value, (key, amount) -> amount == null ? 1L : 1L + amount)) {
                             numValuesSinceLastMemoryCheck++;
                             numValuesInColumn[columnNumber] = numValuesInColumn[columnNumber] + 1;
-                        }
-                        buckets.get(columnNumber).get(bucketNumber).put(value, ++amount);
+                            // Occasionally check the memory consumption
+                            if (numValuesSinceLastMemoryCheck >= binder.memoryCheckFrequency) {
+                                numValuesSinceLastMemoryCheck = 0;
 
-                        // Occasionally check the memory consumption
-                        if (numValuesSinceLastMemoryCheck >= binder.memoryCheckFrequency) {
-                            numValuesSinceLastMemoryCheck = 0;
-
-                            spillTillMemoryUnderThreshold(binder, numTableColumns, startTableColumnIndex, buckets, numValuesInColumn);
+                                spillTillMemoryUnderThreshold(binder, numTableColumns, startTableColumnIndex, buckets, numValuesInColumn);
+                            }
                         }
                     }
                 }
@@ -203,7 +201,8 @@ public class Bucketizer {
 
                             // Write buckets from the largest column to disk and empty written buckets
                             for (int largeBucketNumber = 0; largeBucketNumber < binder.numBucketsPerColumn; largeBucketNumber++) {
-                                writeBucket(binder.tempFolder, naryOffset + largestAttributeCombinationNumber, largeBucketNumber, -1, buckets.get(largestAttributeCombinationNumber).get(largeBucketNumber), binder.columnSizes);
+                                writeBucket(binder.tempFolder, naryOffset + largestAttributeCombinationNumber, largeBucketNumber, -1,
+                                        buckets.get(largestAttributeCombinationNumber).get(largeBucketNumber), binder.columnSizes);
                                 buckets.get(largestAttributeCombinationNumber).set(largeBucketNumber, new HashMap<>());
                             }
 
@@ -221,7 +220,8 @@ public class Bucketizer {
 
             // Write buckets to disk
             for (int attributeCombinationNumber : table2attributeCombinationNumbers.get(tableIndex)) {
-                if (narySpillCounts[attributeCombinationNumber] == 0) { // if an attribute combination was spilled to disk, we do not count empty buckets for this attribute combination, because the partitioning distributes the values evenly and hence all buckets should have been populated
+                if (narySpillCounts[attributeCombinationNumber] == 0) { // if an attribute combination was spilled to disk, we do not count empty buckets for this attribute
+                    // combination, because the partitioning distributes the values evenly and hence all buckets should have been populated
                     for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
                         Map<String, Long> bucket = buckets.get(attributeCombinationNumber).get(bucketNumber);
                         if (bucket.size() != 0)
@@ -268,7 +268,8 @@ public class Bucketizer {
         return emptyBuckets;
     }
 
-    private static void spillTillMemoryUnderThreshold(BINDER binder, int numTableColumns, int startTableColumnIndex, List<List<Map<String, Long>>> buckets, int[] numValuesInColumn) throws IOException {
+    private static void spillTillMemoryUnderThreshold(BINDER binder, int numTableColumns, int startTableColumnIndex, List<List<Map<String, Long>>> buckets,
+                                                      int[] numValuesInColumn) throws IOException {
         // Spill to disk if necessary
         while (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() > binder.maxMemoryUsage) {
             // Identify largest buffer
@@ -298,7 +299,8 @@ public class Bucketizer {
     private static void toDisk(BINDER binder, int[] emptyBuckets, int numTableColumns, int startTableColumnIndex, List<List<Map<String, Long>>> buckets) throws IOException {
         for (int columnNumber = 0; columnNumber < numTableColumns; columnNumber++) {
             int globalColumnIndex = startTableColumnIndex + columnNumber;
-            if (binder.spillCounts[globalColumnIndex] == 0) { // if a column was spilled to disk, we do not count empty buckets for this column, because the partitioning distributes the values evenly and hence all buckets should have been populated
+            if (binder.spillCounts[globalColumnIndex] == 0) { // if a column was spilled to disk, we do not count empty buckets for this column, because the partitioning
+                // distributes the values evenly and hence all buckets should have been populated
                 for (int bucketNumber = 0; bucketNumber < binder.numBucketsPerColumn; bucketNumber++) {
                     Map<String, Long> bucket = buckets.get(columnNumber).get(bucketNumber);
                     if (bucket.size() != 0)
@@ -409,7 +411,8 @@ public class Bucketizer {
     }
 
     static int[] refineBucketLevel(BINDER binder, BitSet activeAttributes, int attributeOffset, int level) throws IOException {
-        // The offset is used for n-ary INDs, because their buckets are placed behind the unary buckets on disk, which is important if the unary buckets have not been deleted before
+        // The offset is used for n-ary INDs, because their buckets are placed behind the unary buckets on disk, which is important if the unary buckets have not been deleted
+        // before
         // Empty sub bucket cache, because it will be refilled in the following
         logger.info("Refining at level " + (level + 1));
         binder.attribute2subBucketsCache = null;
