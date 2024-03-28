@@ -1,6 +1,5 @@
-package binder;
+package binder.core;
 
-import binder.core.BINDER;
 import binder.io.DefaultFileInputGenerator;
 import binder.io.RelationalFileInput;
 import binder.runner.Config;
