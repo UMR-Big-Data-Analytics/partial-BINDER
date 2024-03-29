@@ -245,6 +245,15 @@ public class BINDER {
     private Map<AttributeCombination, List<AttributeCombination>> generateNPlusOneAryCandidates(Map<AttributeCombination, List<AttributeCombination>> naryDep2ref) {
         Map<AttributeCombination, List<AttributeCombination>> nPlusOneAryDep2ref = new HashMap<>();
 
+        Map<String, Set<String>> lastLayerLookup = new HashMap<>();
+        naryDep2ref.forEach((key, value) -> {
+            Set<String> referenced = new HashSet<>();
+            for (AttributeCombination ref : value) {
+                referenced.add(ref.toString());
+            }
+            lastLayerLookup.put(key.toString(), referenced);
+        });
+
         if ((naryDep2ref == null) || (naryDep2ref.isEmpty()))
             return nPlusOneAryDep2ref;
 
@@ -253,6 +262,7 @@ public class BINDER {
         List<AttributeCombination> deps = new ArrayList<>(naryDep2ref.keySet());
         for (int i = 0; i < deps.size() - 1; i++) {
             AttributeCombination depPivot = deps.get(i);
+            depExpansionLoop:
             for (int j = i + 1; j < deps.size(); j++) { // if INDs of the form AA<CD should be discovered as well, remove + 1
                 AttributeCombination depExtension = deps.get(j);
 
@@ -264,14 +274,40 @@ public class BINDER {
                 if (this.notSamePrefix(depPivot, depExtension))
                     continue;
 
-                int depPivotAttr = depPivot.getAttributes()[previousSize - 1];
                 int depExtensionAttr = depExtension.getAttributes()[previousSize - 1];
+
+                List<String> depStrings = new ArrayList<>();
+                if (previousSize > 1) {
+                    // for 3-ary or higher we need to ensure that all subsets have been validated.
+                    int[] depAttributes = Arrays.copyOf(depPivot.getAttributes(), depPivot.getAttributes().length + 1);
+                    depAttributes[depAttributes.length - 1] = depExtensionAttr;
+                    for (int skipIndex = 0; skipIndex < depAttributes.length; skipIndex++) {
+                        StringBuilder attributeString = new StringBuilder();
+                        attributeString.append(depPivot.getTable()).append(": [");
+                        for (int k = 0; k < depAttributes.length; k++) {
+                            if (k == skipIndex) {
+                                continue;
+                            }
+                            attributeString.append(depAttributes[k]).append(", ");
+                        }
+                        attributeString.delete(attributeString.length()-2, attributeString.length());
+                        attributeString.append(']');
+
+                        if (!lastLayerLookup.containsKey(attributeString.toString())) {
+                            continue depExpansionLoop;
+                        }
+                        depStrings.add(attributeString.toString());
+                    }
+                }
+
+                int depPivotAttr = depPivot.getAttributes()[previousSize - 1];
 
                 // Ensure non-empty attribute extension
                 if ((previousSize == 1) && ((this.columnSizes.get(depPivotAttr) == 0) || (this.columnSizes.get(depExtensionAttr) == 0)))
                     continue;
 
                 for (AttributeCombination refPivot : naryDep2ref.get(depPivot)) {
+                    refExpansionLoop:
                     for (AttributeCombination refExtension : naryDep2ref.get(depExtension)) {
 
                         // Ensure same tables
@@ -293,6 +329,28 @@ public class BINDER {
                         if ((depPivotAttr == refExtensionAttr) || (depExtensionAttr == refPivotAttr))
                             continue;
 
+                        if (previousSize > 1) {
+                            // for 3-ary or higher we need to ensure that all subsets have been validated.
+                            int[] refAttributes = Arrays.copyOf(refPivot.getAttributes(), refPivot.getAttributes().length + 1);
+                            refAttributes[refAttributes.length - 1] = refExtensionAttr;
+                            for (int skipIndex = 0; skipIndex < refAttributes.length; skipIndex++) {
+                                StringBuilder attributeString = new StringBuilder();
+                                attributeString.append(refPivot.getTable()).append(": [");
+                                for (int k = 0; k < refAttributes.length; k++) {
+                                    if (k == skipIndex) {
+                                        continue;
+                                    }
+                                    attributeString.append(refAttributes[k]).append(", ");
+                                }
+                                attributeString.delete(attributeString.length()-2, attributeString.length());
+                                attributeString.append(']');
+
+                                if (!lastLayerLookup.get(depStrings.get(skipIndex)).contains(attributeString.toString())) {
+                                    continue refExpansionLoop;
+                                }
+                            }
+                        }
+
                         // Merge the dep attributes and ref attributes, respectively
                         AttributeCombination nPlusOneDep = new AttributeCombination(depPivot.getTable(), 0, depPivot.getAttributes(), depExtensionAttr);
                         AttributeCombination nPlusOneRef = new AttributeCombination(refPivot.getTable(), 0, refPivot.getAttributes(), refExtensionAttr);
@@ -309,7 +367,7 @@ public class BINDER {
     }
 
     /**
-     * Given two combinations, this method checks if the first n-1 entries are equal
+     * Given two combinations, this method checks if the first n-1 entries are unequal
      *
      * @param combination1 the first combination
      * @param combination2 the second combination
