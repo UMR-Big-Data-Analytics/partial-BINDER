@@ -6,8 +6,6 @@ public class AttributeCombination implements Comparable<AttributeCombination> {
 
     private final int table;
     public long violationsLeft;
-    public long distinctValues;
-    public long totalValues;
     public long nulls;
     private int[] attributes;
 
@@ -72,7 +70,7 @@ public class AttributeCombination implements Comparable<AttributeCombination> {
 
     @Override
     public String toString() {
-        return Arrays.toString(attributes);
+        return this.table + ": " + Arrays.toString(attributes);
     }
 
     @Override
