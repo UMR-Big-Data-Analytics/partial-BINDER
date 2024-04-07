@@ -10,10 +10,7 @@ import it.unimi.dsi.fastutil.ints.IntListIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 
 public class Validator {
@@ -36,7 +33,8 @@ public class Validator {
         this.binder = binder;
     }
 
-    private BitSet getActiveAttributeCombinations(BitSet previouslyActiveAttributeCombinations, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, List<AttributeCombination> attributeCombinations) {
+    private BitSet getActiveAttributeCombinations(BitSet previouslyActiveAttributeCombinations, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref,
+                                                  List<AttributeCombination> attributeCombinations) {
         BitSet activeAttributeCombinations = new BitSet(attributeCombinations.size());
         for (int attribute = previouslyActiveAttributeCombinations.nextSetBit(0); attribute >= 0; attribute = previouslyActiveAttributeCombinations.nextSetBit(attribute + 1)) {
             AttributeCombination attributeCombination = attributeCombinations.get(attribute);
@@ -81,7 +79,8 @@ public class Validator {
                 // Load next bucket level as two stage index
                 Int2ObjectOpenHashMap<Map<String, Long>> attributeCombination2Bucket = new Int2ObjectOpenHashMap<>();
                 Map<String, IntArrayList> invertedIndex = new HashMap<>();
-                for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination = activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
+                for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination =
+                        activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
                     // Build the index
                     Map<String, Long> bucket = Bucketizer.readBucketAsList(binder, naryOffset + attributeCombination, bucketNumber, subBucketNumber);
                     attributeCombination2Bucket.put(attributeCombination, bucket);
@@ -93,7 +92,8 @@ public class Validator {
                 }
 
                 // Check nary pINDs
-                for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination = activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
+                for (int attributeCombination = activeAttributeCombinations.nextSetBit(0); attributeCombination >= 0; attributeCombination =
+                        activeAttributeCombinations.nextSetBit(attributeCombination + 1)) {
                     for (String value : attributeCombination2Bucket.get(attributeCombination).keySet()) {
                         // Break if the attribute combination does not reference any other attribute combination
                         if (!naryDep2ref.containsKey(attributeCombinations.get(attributeCombination)) || (naryDep2ref.get(attributeCombinations.get(attributeCombination)).isEmpty()))
@@ -120,10 +120,11 @@ public class Validator {
      *
      * @param value                       String value which connects the attributes
      * @param naryDep2ref                 The current n-ary pIND candidates
-     * @param attributeCombinationGroup
-     * @param attributeCombination2Bucket
+     * @param attributeCombinationGroup   ids of the attributes sharing the given value
+     * @param attributeCombination2Bucket maps the id of an attribute to the bucket associated with that attribute
      */
-    private void prune(String value, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, IntArrayList attributeCombinationGroup, Int2ObjectOpenHashMap<Map<String, Long>> attributeCombination2Bucket) {
+    private void prune(String value, Map<AttributeCombination, List<AttributeCombination>> naryDep2ref, IntArrayList attributeCombinationGroup, Int2ObjectOpenHashMap<Map<String,
+            Long>> attributeCombination2Bucket) {
         // iterate over dependent attributes which contain the given value
         for (int dependant : attributeCombinationGroup) {
             // get number of occurrences in attribute combination
@@ -157,7 +158,8 @@ public class Validator {
      * @param attribute2Refs Map from attribute index to referenced attributes
      * @param attributeGroup List of attribute indices that share a value
      */
-    private void prune(String value, Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs, IntArrayList attributeGroup, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket) {
+    private void prune(String value, Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs, IntArrayList attributeGroup,
+                       Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket) {
         // iterate over every attribute which is in the attribute group
         for (int dependant : attributeGroup) {
             // get occurrences of value in current attribute
@@ -233,7 +235,8 @@ public class Validator {
         }
     }
 
-    private void validateSubBucket(Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket, Map<String, IntArrayList> invertedIndex) {
+    private void validateSubBucket(Int2ObjectOpenHashMap<pINDSingleLinkedList> attribute2Refs, Int2ObjectOpenHashMap<Map<String, Long>> attribute2Bucket, Map<String,
+            IntArrayList> invertedIndex) {
         for (int attribute = getNextAttribute(); attribute != -1; attribute = getNextAttribute(++attribute)) {
             // iteration over the values of the attribute
             for (String value : attribute2Bucket.get(attribute).keySet()) {
