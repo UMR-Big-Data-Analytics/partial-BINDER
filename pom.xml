@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>de.metanome.algorithms.pbinder</groupId>
-    <artifactId>PBINDER</artifactId>
+    <artifactId>pBINDER</artifactId>
     <version>${metanome.version}</version>
     <packaging>jar</packaging>
 
@@ -38,11 +38,6 @@
             <groupId>com.opencsv</groupId>
             <artifactId>opencsv</artifactId>
             <version>5.9</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-core</artifactId>
-            <version>3.0.3</version>
         </dependency>
 
     </dependencies>
