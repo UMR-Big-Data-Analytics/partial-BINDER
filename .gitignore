@@ -1,1 +1,41 @@
-*.txt
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+*.tar.gz
+*.rar
+
+# Directories
+io/data
+io/results
+bin/
+target/
+output/
+../io/
+
+# IDE files
+.project
+.classpath
+.settings
+/.settings
+.metadata
+/.metadata
+.recommenders
+*.releaseBackup
+release.properties
+.idea
+/.idea
+*.iml
+
+# Application files
+results.txt
