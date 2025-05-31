@@ -26,3 +26,16 @@ git submodule update
 2. If not already done, clone and build the [Metanome repository](https://github.com/HPI-Information-Systems/Metanome). This provides required dependencies for the algorithms.
 
 3. Build the algorithms using Maven to generate the JAR files.
+
+## 🧪 Usage & Examples
+
+You can run the algorithms in two ways:
+
+1. **Via Metanome:**  
+   Follow the instructions in the [Metanome repository](https://github.com/HPI-Information-Systems/Metanome) to run the algorithms within the Metanome framework.
+
+2. **Standalone Execution:**  
+   Each algorithm includes a `Runner` class that supports standalone execution either via an IDE or directly from the JAR file.  
+   For experiments, we used shell scripts to execute the JAR files. These scripts are located in the `Utils` folder.
+
+> **Note**: An older, non-Metanome version of this code exists, but it is deprecated and not recommended for use.
