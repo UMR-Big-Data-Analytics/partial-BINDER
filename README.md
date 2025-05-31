@@ -1,4 +1,4 @@
-### 🧠 Partial BINDER – Partial Bucketing INclusion Dependency ExtractoR
+# 🧠 Partial BINDER – Partial Bucketing INclusion Dependency ExtractoR
 
 The `pBINDER` algorithm builds on the [BINDER algorithm](https://hpi.de/fileadmin/user_upload/fachgebiete/naumann/publications/2015/p559-papenbrock.pdf), extending it to support **partial** IND discovery.  
 
